@@ -1,0 +1,5 @@
+激活虚拟环境
+.venv\Scripts\activate.bat
+
+
+python check_chrome_uia.py
