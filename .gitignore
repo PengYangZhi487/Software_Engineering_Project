@@ -1,0 +1,28 @@
+.dide/
+
+# 忽略虚拟环境（非常重要，不然仓库会多出几万行文件）
+venv/
+.venv/
+env/
+
+# 忽略环境变量（保护你的 API Key）
+.env
+*.env
+
+# 忽略本地数据库文件
+*.db
+*.sqlite3
+
+# 忽略 Python 运行时的缓存
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 忽略 Streamlit 默认缓存
+.streamlit/
+
+# 忽略系统生成文件
+.DS_Store
+Thumbs.db
+
+test_file/Feasibility_evidence/
