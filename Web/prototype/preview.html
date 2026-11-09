@@ -1,0 +1,1405 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RATGP · 需求工程工作台 — 设计预览</title>
+<style>
+/* ============================================================
+   RATGP Design System — P0 preview
+   tokens / base / shell / components / views
+   ============================================================ */
+
+/* ---------- 1. tokens ---------- */
+:root {
+  --bg: #F6F6F3;
+  --surface: #FFFFFF;
+  --surface-2: #FAFAF8;
+  --line: #E8E6E1;
+  --line-strong: #D8D5CE;
+
+  --text: #16181B;
+  --text-2: #5C5F66;
+  --text-3: #8F9298;
+
+  --accent: #4F46E5;
+  --accent-hover: #4338CA;
+  --accent-soft: #EEECFE;
+  --accent-line: #DBD8FC;
+
+  --ok: #0E7C57;
+  --ok-soft: #E7F6EF;
+  --warn: #B45309;
+  --warn-soft: #FCF1E2;
+  --danger: #BE123C;
+  --danger-soft: #FDECEF;
+
+  --r-lg: 12px;
+  --r-md: 9px;
+  --r-sm: 6px;
+
+  --shadow-pop: 0 24px 56px -28px rgba(15, 17, 21, .30), 0 2px 8px -2px rgba(15, 17, 21, .06);
+  --ease: cubic-bezier(.2, .8, .2, 1);
+
+  --sans: "Inter", -apple-system, "Segoe UI Variable Text", "Segoe UI",
+          "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --mono: "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, "Microsoft YaHei", monospace;
+}
+
+[data-theme="dark"] {
+  --bg: #0B0C0E;
+  --surface: #121316;
+  --surface-2: #17181C;
+  --line: #232529;
+  --line-strong: #33363D;
+  --text: #EDEDEF;
+  --text-2: #A2A4AB;
+  --text-3: #71747C;
+  --accent: #8B85FF;
+  --accent-hover: #A6A1FF;
+  --accent-soft: #1C1B33;
+  --accent-line: #302D55;
+  --ok: #3DD68C;
+  --ok-soft: #10291F;
+  --warn: #F0A94C;
+  --warn-soft: #2A2114;
+  --danger: #FB7185;
+  --danger-soft: #2C151B;
+  --shadow-pop: 0 24px 56px -24px rgba(0, 0, 0, .70), 0 2px 8px -2px rgba(0, 0, 0, .40);
+}
+
+/* ---------- 1b. glass（玻璃淡紫） ---------- */
+[data-theme="glass"] {
+  --bg: #F1ECFB;
+  --surface: rgba(255, 255, 255, .40);
+  --surface-2: rgba(255, 255, 255, .24);
+  --line: rgba(108, 94, 168, .15);
+  --line-strong: rgba(108, 94, 168, .28);
+  --text: #241F38;
+  --text-2: #57506F;
+  --text-3: #8A83A2;
+  --accent: #5B4BD6;
+  --accent-hover: #4B3BC4;
+  --accent-soft: rgba(91, 75, 214, .12);
+  --accent-line: rgba(91, 75, 214, .26);
+  --ok: #0C7350;
+  --ok-soft: rgba(16, 185, 129, .12);
+  --warn: #A9610A;
+  --warn-soft: rgba(245, 158, 11, .14);
+  --danger: #AF1B44;
+  --danger-soft: rgba(244, 63, 94, .12);
+  --shadow-pop: 0 30px 70px -30px rgba(58, 42, 120, .38), 0 2px 10px -2px rgba(58, 42, 120, .10);
+  --glass-border: rgba(255, 255, 255, .74);
+  --glass-blur: 26px;
+}
+
+/* ---------- 2. base ---------- */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+::selection { background: var(--accent-soft); color: var(--text); }
+button { font-family: inherit; }
+input { font-family: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+svg { display: block; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); border: 3px solid transparent; background-clip: content-box; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); background-clip: content-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- 3. shell ---------- */
+.app { display: grid; grid-template-columns: 244px minmax(0, 1fr); height: 100vh; position: relative; z-index: 1; }
+
+/* 玻璃主题的底：几团低饱和光晕，面板才“有东西可透” */
+body::before {
+  content: ""; position: fixed; inset: -10%; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(46% 44% at 22% 6%, rgba(147, 112, 246, .50), transparent 66%),
+    radial-gradient(40% 42% at 82% 22%, rgba(108, 124, 246, .34), transparent 68%),
+    radial-gradient(44% 46% at 96% 92%, rgba(232, 140, 250, .32), transparent 68%),
+    radial-gradient(46% 44% at 6% 82%, rgba(176, 156, 250, .44), transparent 68%),
+    linear-gradient(122deg, rgba(139, 92, 246, .16) 0%, rgba(255, 255, 255, 0) 34%, rgba(236, 72, 153, .08) 66%, rgba(99, 102, 241, .14) 100%),
+    linear-gradient(160deg, #EFE7FC 0%, #F7F1FE 55%, #F2E9FC 100%);
+  opacity: 0; transition: opacity .45s var(--ease);
+}
+[data-theme="glass"] body::before { opacity: 1; }
+
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.brand { height: 56px; display: flex; align-items: center; gap: 9px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+.brand-mark {
+  width: 26px; height: 26px; border-radius: 7px;
+  background: var(--text);
+  display: grid; place-items: center; flex: none;
+}
+[data-theme="dark"] .brand-mark { background: var(--accent); }
+.brand-name { font-size: 13.5px; font-weight: 650; letter-spacing: .02em; }
+.brand-sub { font-size: 10.5px; color: var(--text-3); letter-spacing: .04em; margin-top: -1px; }
+
+.proj {
+  margin: 12px 12px 8px; padding: 9px 10px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface-2);
+  display: flex; align-items: center; gap: 9px; cursor: pointer;
+  transition: border-color .15s var(--ease), background .15s var(--ease);
+}
+.proj:hover { border-color: var(--line-strong); background: var(--surface); }
+.proj .av {
+  width: 26px; height: 26px; border-radius: 7px; flex: none;
+  background: var(--accent-soft); color: var(--accent);
+  display: grid; place-items: center; font-size: 11.5px; font-weight: 650;
+}
+.proj .nm { min-width: 0; }
+.proj .nm b { display: block; font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proj .nm span { font-size: 10.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.proj .chev { margin-left: auto; color: var(--text-3); }
+
+.nav { flex: 1; overflow-y: auto; padding: 4px 8px 12px; min-height: 0; }
+.nav-label {
+  font-size: 10px; letter-spacing: .12em; color: var(--text-3);
+  padding: 14px 9px 6px; text-transform: uppercase; font-weight: 600;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  height: 33px; padding: 0 9px; border-radius: 8px;
+  color: var(--text-2); font-size: 12.5px; cursor: pointer;
+  transition: background .14s var(--ease), color .14s var(--ease);
+  position: relative;
+}
+.nav-item:hover { background: var(--surface-2); color: var(--text); }
+.nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+[data-theme="dark"] .nav-item.active { color: var(--text); }
+.nav-item .ix { font-family: var(--mono); font-size: 10px; color: var(--text-3); width: 15px; font-variant-numeric: tabular-nums; }
+.nav-item.active .ix { color: var(--accent); }
+[data-theme="dark"] .nav-item.active .ix { color: var(--accent); }
+.nav-item .cnt { margin-left: auto; font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.nav-item .sd { width: 5px; height: 5px; border-radius: 50%; margin-left: auto; }
+.nav-item .sd + .cnt { margin-left: 6px; }
+
+.side-foot { border-top: 1px solid var(--line); padding: 10px 12px; display: flex; align-items: center; gap: 9px; }
+.side-foot .who { font-size: 11.5px; line-height: 1.3; }
+.side-foot .who span { color: var(--text-3); font-size: 10.5px; }
+
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+
+.topbar {
+  height: 56px; flex: none; position: relative; z-index: 20;
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 22px; border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.crumb { font-size: 12px; color: var(--text-3); display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.crumb b { color: var(--text); font-weight: 550; }
+.crumb .sep { color: var(--line-strong); }
+
+.searchbox {
+  margin-left: auto; position: relative; width: 296px;
+}
+.searchbox svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-3); }
+.searchbox input {
+  width: 100%; height: 32px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--surface-2);
+  color: var(--text); font-size: 12.5px; padding: 0 44px 0 32px;
+  transition: border-color .15s var(--ease), box-shadow .15s var(--ease), background .15s var(--ease);
+}
+.searchbox input::placeholder { color: var(--text-3); }
+.searchbox input:focus {
+  outline: none; background: var(--surface); border-color: var(--accent-line);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.kbd {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  font-family: var(--mono); font-size: 10px; color: var(--text-3);
+  border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; background: var(--surface);
+}
+.tb-div { width: 1px; height: 20px; background: var(--line); }
+.demo-chip {
+  font-size: 10.5px; color: var(--warn); background: var(--warn-soft);
+  border: 1px solid color-mix(in srgb, var(--warn) 22%, transparent);
+  padding: 2px 7px; border-radius: 99px; white-space: nowrap;
+}
+.avatar {
+  width: 27px; height: 27px; border-radius: 50%;
+  background: var(--surface-2); border: 1px solid var(--line);
+  display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--text-2);
+  cursor: pointer;
+}
+
+.content { flex: 1; min-height: 0; overflow-y: auto; padding: 22px 26px 44px; }
+.view { display: none; }
+.view.active { display: block; animation: rise .22s var(--ease) both; }
+[data-static] .view.active { animation: none; }
+[data-static] .drawer, [data-static] .scrim, [data-static] .toast { transition: none; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ---------- 4. primitives ---------- */
+.btn {
+  height: 32px; padding: 0 11px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--text);
+  font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px;
+  cursor: pointer; white-space: nowrap;
+  transition: background .14s var(--ease), border-color .14s var(--ease), transform .14s var(--ease);
+}
+.btn:hover { background: var(--surface-2); border-color: var(--line-strong); }
+.btn:active { transform: translateY(.5px); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+[data-theme="dark"] .btn.primary { color: #0B0C0E; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--text-2); }
+.btn.ghost:hover { background: var(--surface-2); color: var(--text); border-color: transparent; }
+.btn.sm { height: 27px; padding: 0 9px; font-size: 12px; border-radius: 7px; }
+.btn.icon { width: 32px; padding: 0; justify-content: center; }
+.btn.danger { color: var(--danger); }
+.btn.danger:hover { background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 24%, transparent); }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 21px; padding: 0 7px; border-radius: var(--r-sm);
+  font-size: 11px; color: var(--text-2);
+  background: var(--surface-2); border: 1px solid var(--line);
+  white-space: nowrap;
+}
+.chip.warn { color: var(--warn); background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 20%, transparent); }
+.chip.danger { color: var(--danger); background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 20%, transparent); }
+.chip.ok { color: var(--ok); background: var(--ok-soft); border-color: color-mix(in srgb, var(--ok) 20%, transparent); }
+.chip.accent { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-line); }
+
+.dot { width: 6px; height: 6px; border-radius: 50%; flex: none; background: currentColor; }
+.st { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); white-space: nowrap; }
+.st.ok { color: var(--ok); }
+.st.warn { color: var(--warn); }
+.st.idle { color: var(--text-3); }
+
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); }
+.card-h { display: flex; align-items: center; gap: 9px; padding: 13px 16px; border-bottom: 1px solid var(--line); }
+.card-h .t { font-size: 12.5px; font-weight: 600; letter-spacing: .01em; }
+.card-h .m { margin-left: auto; font-size: 11.5px; color: var(--text-3); }
+.card-b { padding: 16px; }
+
+.view-head { display: flex; align-items: flex-end; gap: 24px; margin-bottom: 18px; }
+.view-head .eyebrow { font-size: 10.5px; letter-spacing: .11em; color: var(--text-3); font-weight: 600; }
+.page-title { font-size: 21px; font-weight: 650; letter-spacing: -.012em; margin: 5px 0 3px; display: flex; align-items: baseline; gap: 9px; }
+.page-title .ver {
+  font-size: 11px; font-weight: 500; color: var(--text-3);
+  border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; transform: translateY(-2px);
+}
+.page-sub { font-size: 12.5px; color: var(--text-2); }
+.head-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+/* ---------- 5. overview ---------- */
+.strip {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.metric { padding: 16px 18px; border-right: 1px solid var(--line); }
+.metric:last-child { border-right: 0; }
+.metric .k { font-size: 11.5px; color: var(--text-2); display: flex; align-items: center; gap: 5px; }
+.metric .v { font-size: 27px; font-weight: 600; letter-spacing: -.025em; line-height: 1.15; margin-top: 7px; font-variant-numeric: tabular-nums; }
+.metric .v small { font-size: 11.5px; font-weight: 500; color: var(--text-3); letter-spacing: 0; margin-left: 3px; }
+.metric .d { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+.metric .d b { font-weight: 550; color: var(--text-2); }
+
+.pipe { margin-top: 14px; }
+.steps { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.step {
+  border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px;
+  background: var(--surface); cursor: pointer; position: relative;
+  transition: border-color .15s var(--ease), background .15s var(--ease), transform .15s var(--ease);
+}
+.step:hover { border-color: var(--line-strong); transform: translateY(-1px); }
+.step .n { font-family: var(--mono); font-size: 9.5px; color: var(--text-3); letter-spacing: .04em; }
+.step .nm { font-size: 12px; font-weight: 550; margin-top: 4px; display: flex; align-items: center; gap: 5px; }
+.step .val { font-size: 11px; color: var(--text-3); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.step.done { background: var(--surface); }
+.step.now { border-color: var(--accent-line); background: var(--accent-soft); }
+.step.now .nm { color: var(--accent); }
+[data-theme="dark"] .step.now .nm { color: var(--text); }
+.step.warnstep { border-color: color-mix(in srgb, var(--warn) 26%, transparent); }
+
+.grid-2 { display: grid; grid-template-columns: 1.25fr 1fr; gap: 14px; margin-top: 14px; }
+
+.todo { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.todo:last-child { border-bottom: 0; padding-bottom: 0; }
+.todo:first-child { padding-top: 0; }
+.todo:hover .tt { color: var(--accent); }
+.todo .num {
+  width: 32px; height: 32px; border-radius: 9px; flex: none;
+  background: var(--surface-2); border: 1px solid var(--line);
+  display: grid; place-items: center; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.todo .tt { font-size: 12.5px; font-weight: 500; transition: color .14s var(--ease); }
+.todo .ts { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+.todo .go { margin-left: auto; color: var(--text-3); }
+
+.act { display: flex; gap: 11px; padding: 9px 0; }
+.act .bd { width: 6px; height: 6px; border-radius: 50%; background: var(--line-strong); margin-top: 6px; flex: none; }
+.act .bd.a { background: var(--accent); }
+.act .bd.g { background: var(--ok); }
+.act .time { font-family: var(--mono); font-size: 10px; color: var(--text-3); width: 42px; flex: none; padding-top: 2px; }
+.act .tx { font-size: 12px; color: var(--text-2); }
+.act .tx b { color: var(--text); font-weight: 550; }
+
+.dist { display: flex; flex-direction: column; gap: 10px; margin-top: 2px; }
+.dist-row { display: grid; grid-template-columns: 74px 1fr 30px; gap: 10px; align-items: center; font-size: 11.5px; color: var(--text-2); }
+.bar { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; display: flex; }
+.bar i { display: block; height: 100%; }
+
+/* ---------- 6. doc workspace ---------- */
+.doc-grid {
+  display: grid; grid-template-columns: 216px minmax(0, 1fr) 336px;
+  gap: 14px; height: calc(100vh - 208px); min-height: 420px;
+}
+.pane { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.pane-h {
+  flex: none; height: 38px; display: flex; align-items: center; gap: 8px;
+  padding: 0 14px; border-bottom: 1px solid var(--line);
+  font-size: 11.5px; color: var(--text-3); font-weight: 550;
+}
+.pane-b { overflow-y: auto; min-height: 0; flex: 1; }
+
+.outline-item { padding: 5px 14px; font-size: 12px; color: var(--text-2); cursor: pointer; display: flex; gap: 8px; align-items: baseline; }
+.outline-item:hover { background: var(--surface-2); color: var(--text); }
+.outline-item.h { font-weight: 600; color: var(--text); margin-top: 6px; }
+.outline-item .no { font-family: var(--mono); font-size: 9.5px; color: var(--text-3); width: 18px; text-align: right; flex: none; }
+
+.paper { padding: 26px 30px 40px; }
+.paper-inner { max-width: 680px; margin: 0 auto; }
+.doc-title { font-size: 17px; font-weight: 650; letter-spacing: -.01em; margin: 0 0 4px; }
+.doc-meta { font-size: 11px; color: var(--text-3); margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.p {
+  display: grid; grid-template-columns: 22px 1fr; gap: 8px;
+  padding: 5px 6px 5px 4px; border-radius: 5px; cursor: text;
+  transition: background .13s var(--ease);
+}
+.p:hover { background: var(--surface-2); }
+.p.active { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+.p .no { font-family: var(--mono); font-size: 9.5px; color: var(--text-3); text-align: right; padding-top: 4px; }
+.p .tx { font-size: 13px; line-height: 1.85; color: var(--text-2); }
+.p.hd .tx { font-size: 13px; font-weight: 600; color: var(--text); margin-top: 12px; }
+.p .tx em { font-style: normal; background: color-mix(in srgb, var(--warn) 22%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); padding: 0 1px; border-radius: 2px; }
+
+.cand { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.cand-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--surface); }
+.cand-card .ch { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
+.cand-card .id { font-family: var(--mono); font-size: 10.5px; color: var(--text-3); }
+.cand-card .ti { font-size: 12.5px; font-weight: 600; }
+.cand-card .de { font-size: 11.5px; color: var(--text-2); line-height: 1.65; }
+.cand-card .ac { margin: 9px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.cand-card .ac li { font-size: 11.5px; color: var(--text-2); display: flex; gap: 7px; line-height: 1.55; }
+.cand-card .ac li::before { content: "✓"; color: var(--ok); font-size: 10px; line-height: 1.8; flex: none; }
+.cand-card .ft { display: flex; gap: 6px; margin-top: 10px; }
+.cand-card.collapsed { padding: 10px 12px; cursor: pointer; }
+.cand-card.collapsed:hover { border-color: var(--line-strong); }
+
+/* ---------- 7. requirements ---------- */
+.toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.seg { display: inline-flex; padding: 2px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; }
+.seg button {
+  height: 26px; padding: 0 10px; border: 0; background: transparent; border-radius: 6px;
+  font-size: 12px; color: var(--text-2); cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+  transition: background .14s var(--ease), color .14s var(--ease);
+}
+.seg button:hover { color: var(--text); }
+.seg button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(15, 17, 21, .06); font-weight: 550; }
+.seg button .n { font-size: 10.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.toolbar .sp { flex: 1; }
+
+.table-wrap { overflow: auto; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line); }
+table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+thead th {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--surface-2); color: var(--text-3);
+  font-size: 10.5px; font-weight: 600; letter-spacing: .06em;
+  text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody td { height: 41px; padding: 0 12px; border-bottom: 1px solid var(--line); color: var(--text-2); vertical-align: middle; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr { cursor: pointer; }
+tbody tr:hover td { background: var(--surface-2); }
+tbody tr.sel td { background: var(--accent-soft); }
+tbody tr.sel:hover td { background: var(--accent-soft); }
+td.id { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
+td.tt { color: var(--text); font-weight: 500; }
+td.src { font-family: var(--mono); font-size: 10.5px; color: var(--text-3); }
+
+.cb { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; display: block; }
+.col-cb { width: 34px; padding-left: 14px !important; }
+
+.bulkbar {
+  display: flex; align-items: center; gap: 10px;
+  height: 38px; padding: 0 12px; margin-bottom: 10px;
+  background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: 9px;
+  font-size: 12px; color: var(--accent); animation: rise .16s var(--ease);
+}
+[data-theme="dark"] .bulkbar { color: var(--text); }
+.bulkbar .sp { flex: 1; }
+
+.empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 60px 20px; }
+.empty .ic {
+  width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--surface-2); display: grid; place-items: center; color: var(--text-3); margin-bottom: 14px;
+}
+.empty h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+.empty p { margin: 0 0 16px; font-size: 12.5px; color: var(--text-2); max-width: 380px; line-height: 1.7; }
+.empty .row { display: flex; gap: 8px; }
+
+/* ---------- 8. matrix ---------- */
+.mx-head { display: flex; align-items: center; gap: 18px; margin-bottom: 14px; }
+.ring { width: 72px; height: 72px; flex: none; position: relative; }
+.ring .lb { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+.ring .lb b { font-size: 17px; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.ring .lb span { display: block; font-size: 9px; color: var(--text-3); margin-top: -2px; }
+.mx-split { display: grid; grid-template-columns: minmax(0, 1fr) 268px; gap: 14px; align-items: start; }
+
+.mx { overflow: auto; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line); }
+.mx table { font-size: 12px; }
+.mx th, .mx td { border-bottom: 1px solid var(--line); }
+.mx thead th { background: var(--surface-2); }
+.mx th.rowh {
+  position: sticky; left: 0; z-index: 3; background: var(--surface);
+  text-align: left; font-weight: 400; padding: 0 12px; height: 36px;
+  border-right: 1px solid var(--line); white-space: nowrap;
+  width: 300px; max-width: 300px; overflow: hidden; text-overflow: ellipsis;
+}
+.mx tr:hover th.rowh { background: var(--surface-2); }
+.mx .rowh .rid { font-family: var(--mono); font-size: 10px; color: var(--text-3); margin-right: 7px; }
+.mx .rowh .rt { font-size: 12px; color: var(--text); }
+.mx td.c { width: 56px; text-align: center; padding: 0; }
+.mk { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+.mk.on { background: var(--accent); }
+.mk.off { border: 1px solid var(--line-strong); }
+.mx th.ct { width: 56px; text-align: center; font-size: 9.5px; font-family: var(--mono); padding: 6px 0; }
+.mx th.ct .ty { display: block; font-size: 8px; color: var(--text-3); letter-spacing: 0; margin-top: 2px; }
+.mx tr.uncovered th.rowh .rt { color: var(--text-3); }
+
+.legend { display: flex; align-items: center; gap: 14px; font-size: 11px; color: var(--text-3); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---------- 9. drawer ---------- */
+.scrim {
+  position: fixed; inset: 0; background: rgba(12, 14, 18, .26);
+  opacity: 0; pointer-events: none; transition: opacity .2s var(--ease); z-index: 40;
+}
+.scrim.on { opacity: 1; pointer-events: auto; }
+.drawer {
+  position: fixed; top: 0; right: 0; height: 100vh; width: 428px; z-index: 50;
+  background: var(--surface); border-left: 1px solid var(--line);
+  box-shadow: var(--shadow-pop);
+  transform: translateX(102%); transition: transform .26s var(--ease);
+  display: flex; flex-direction: column;
+}
+.drawer.on { transform: none; }
+.dh { flex: none; padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; align-items: flex-start; gap: 10px; }
+.dh .id { font-family: var(--mono); font-size: 10.5px; color: var(--text-3); letter-spacing: .02em; }
+.dh .ti { font-size: 15px; font-weight: 620; margin-top: 2px; letter-spacing: -.01em; }
+.dh .x { margin-left: auto; }
+.db { flex: 1; overflow-y: auto; padding: 16px 18px 24px; }
+.dsec { margin-bottom: 18px; }
+.dsec .lb { font-size: 10.5px; letter-spacing: .08em; color: var(--text-3); font-weight: 600; margin-bottom: 7px; }
+.dsec p { margin: 0; font-size: 12.5px; line-height: 1.75; color: var(--text-2); }
+.aclist { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 7px; }
+.aclist li { display: grid; grid-template-columns: 18px 1fr; gap: 6px; font-size: 12.5px; color: var(--text-2); line-height: 1.6; }
+.aclist li i { font-family: var(--mono); font-style: normal; font-size: 10px; color: var(--text-3); padding-top: 2px; }
+.quote {
+  border-left: 2px solid var(--accent-line); background: var(--surface-2);
+  padding: 9px 11px; border-radius: 0 7px 7px 0;
+  font-size: 12px; color: var(--text-2); line-height: 1.7;
+}
+.quote .q { font-family: var(--mono); font-size: 10px; color: var(--text-3); display: block; margin-bottom: 4px; }
+.df { flex: none; padding: 12px 18px; border-top: 1px solid var(--line); display: flex; gap: 8px; background: var(--surface); }
+.notice {
+  display: flex; gap: 8px; padding: 9px 11px; border-radius: 8px;
+  background: var(--danger-soft); border: 1px solid color-mix(in srgb, var(--danger) 18%, transparent);
+  font-size: 11.5px; color: var(--danger); line-height: 1.6;
+}
+.notice.warn { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+
+/* ---------- 10. toast ---------- */
+.toast {
+  position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 12px);
+  background: var(--text); color: var(--bg);
+  padding: 8px 14px; border-radius: 8px; font-size: 12px;
+  opacity: 0; pointer-events: none; transition: all .22s var(--ease); z-index: 60;
+  box-shadow: var(--shadow-pop);
+}
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- 11. theme menu ---------- */
+.tmenu { position: relative; }
+.tpop {
+  position: absolute; right: 0; top: 38px; width: 198px; z-index: 30;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: var(--shadow-pop); padding: 6px; display: none;
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+}
+.tmenu.on .tpop { display: block; animation: rise .14s var(--ease) both; }
+.tpop-h { font-size: 10px; letter-spacing: .1em; color: var(--text-3); font-weight: 600; padding: 6px 9px 7px; }
+.titem {
+  width: 100%; height: 32px; display: flex; align-items: center; gap: 9px;
+  padding: 0 9px; border: 0; background: transparent; border-radius: 7px;
+  font-size: 12.5px; color: var(--text-2); cursor: pointer; text-align: left;
+}
+.titem:hover { background: var(--surface-2); color: var(--text); }
+.titem.on { color: var(--text); font-weight: 550; }
+.titem .sw { width: 15px; height: 15px; border-radius: 4px; border: 1px solid var(--line); flex: none; }
+.sw.light { background: linear-gradient(135deg, #FFFFFF, #ECE9E2); }
+.sw.glass { background: linear-gradient(135deg, #EDE6FF, #C7B8F7 55%, #F6E7FF); }
+.sw.dark { background: linear-gradient(135deg, #2C2E36, #0B0C0E); }
+.titem .ck { margin-left: auto; color: var(--accent); opacity: 0; font-size: 11px; }
+.titem.on .ck { opacity: 1; }
+.titem.on::after { content: "✓"; margin-left: auto; color: var(--accent); font-size: 11px; }
+
+/* ---------- 12. glass surfaces ---------- */
+[data-theme="glass"] .sidebar,
+[data-theme="glass"] .topbar {
+  background: rgba(255, 255, 255, .44);
+  border-color: var(--glass-border);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  backdrop-filter: blur(28px) saturate(170%);
+}
+[data-theme="glass"] .card,
+[data-theme="glass"] .strip,
+[data-theme="glass"] .table-wrap,
+[data-theme="glass"] .mx,
+[data-theme="glass"] .drawer {
+  border-color: var(--glass-border);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, .02) 55%, rgba(255, 255, 255, 0));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(185%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(185%);
+  box-shadow: 0 0 0 1px rgba(120, 100, 190, .06), 0 24px 56px -38px rgba(58, 42, 120, .60), inset 0 1px 0 rgba(255, 255, 255, .85);
+}
+[data-theme="glass"] .drawer { background: rgba(255, 255, 255, .92); }
+[data-theme="glass"] .tpop {
+  background: #FCFAFF;
+  border-color: rgba(255, 255, 255, .95);
+  box-shadow: 0 18px 44px -18px rgba(58, 42, 120, .35), 0 2px 8px -2px rgba(58, 42, 120, .10);
+}
+[data-theme="glass"] .card-h,
+[data-theme="glass"] .pane-h,
+[data-theme="glass"] .dh,
+[data-theme="glass"] .df { border-color: rgba(108, 94, 168, .14); }
+[data-theme="glass"] thead th {
+  background: rgba(252, 250, 255, .80);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+[data-theme="glass"] .mx th.rowh {
+  background: rgba(252, 250, 255, .76);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+[data-theme="glass"] .btn:not(.primary):not(.ghost) { background: rgba(255, 255, 255, .55); }
+[data-theme="glass"] .btn:not(.primary):not(.ghost):hover { background: rgba(255, 255, 255, .85); }
+[data-theme="glass"] .btn.ghost:hover { background: rgba(255, 255, 255, .5); }
+[data-theme="glass"] .proj { background: rgba(255, 255, 255, .46); }
+[data-theme="glass"] .proj:hover { background: rgba(255, 255, 255, .72); }
+[data-theme="glass"] .searchbox input { background: rgba(255, 255, 255, .48); }
+[data-theme="glass"] .searchbox input:focus { background: rgba(255, 255, 255, .85); }
+[data-theme="glass"] .step { background: rgba(255, 255, 255, .38); }
+[data-theme="glass"] .step.now { background: rgba(91, 75, 214, .13); }
+[data-theme="glass"] .scrim { background: rgba(58, 42, 120, .18); }
+[data-theme="glass"] .brand-mark { background: linear-gradient(135deg, #7059E8, #A78BFA); }
+[data-theme="glass"] .toast { background: rgba(36, 31, 56, .92); color: #F6F3FF; }
+[data-theme="glass"] .empty .ic { background: rgba(255, 255, 255, .45); }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 15v4a1 1 0 001 1h14a1 1 0 001-1v-4"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 16H3L12 3z"/><path d="M12 10v4M12 17v.5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.2A8.4 8.4 0 019.8 4 8.5 8.5 0 1020 14.2z"/></symbol>
+    <symbol id="i-drop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2s6.2 6.4 6.2 10.4a6.2 6.2 0 11-12.4 0C5.8 9.6 12 3.2 12 3.2z"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M6 2.5h7l5 5v14H6z"/><path d="M13 2.5v5h5"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></symbol>
+    <symbol id="i-flask" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M9 3h6M10 3v6L5 18a2 2 0 001.8 3h10.4A2 2 0 0019 18l-5-9V3"/><path d="M7.5 14h9"/></symbol>
+    <symbol id="i-flow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="3" y="3.5" width="6" height="5" rx="1.4"/><rect x="15" y="9.5" width="6" height="5" rx="1.4"/><rect x="3" y="15.5" width="6" height="5" rx="1.4"/><path d="M9 6h3a3 3 0 013 3v.5M9 18h3a3 3 0 003-3v-.5"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 20V9M10 20V4M16 20v-7M22 20H2"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 2.8l7.5 3v6c0 4.5-3.1 8-7.5 9.4C7.6 19.8 4.5 16.3 4.5 11.8v-6z"/><path d="M9 12l2 2 4-4"/></symbol>
+    <symbol id="i-diff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M8 3v14M8 17l-3-3M8 17l3-3"/><path d="M16 21V7M16 7l-3 3M16 7l3 3"/></symbol>
+    <symbol id="i-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 5h18M7 12h10M10 19h4"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></symbol>
+    <symbol id="i-quote" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 5h16M4 10h10M4 15h16M4 20h10"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <!-- ========== sidebar ========== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h11M4 17h14"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">RATGP</div>
+        <div class="brand-sub">需求工程工作台</div>
+      </div>
+    </div>
+
+    <div class="proj" data-toast="项目切换面板将在 P1 接入">
+      <div class="av">选</div>
+      <div class="nm"><b>校园选课系统</b><span>V1.0 · 25 条需求</span></div>
+      <svg class="chev" width="14" height="14"><use href="#i-chev"/></svg>
+    </div>
+
+    <nav class="nav" id="nav">
+      <div class="nav-label">项目</div>
+      <div class="nav-item" data-view="overview"><span class="ix">01</span>总览</div>
+      <div class="nav-label">主线</div>
+      <div class="nav-item" data-view="doc"><span class="ix">02</span>文档<span class="cnt">1</span></div>
+      <div class="nav-item" data-view="req"><span class="ix">03</span>需求<span class="cnt">25</span></div>
+      <div class="nav-item" data-view="quality"><span class="ix">04</span>质量<span class="sd" style="background:var(--warn)"></span><span class="cnt">11</span></div>
+      <div class="nav-item" data-view="case"><span class="ix">05</span>用例<span class="cnt">13</span></div>
+      <div class="nav-item" data-view="matrix"><span class="ix">06</span>追踪<span class="cnt">60%</span></div>
+      <div class="nav-item" data-view="diff"><span class="ix">07</span>变更</div>
+      <div class="nav-item" data-view="report"><span class="ix">08</span>报告</div>
+    </nav>
+
+    <div class="side-foot">
+      <div class="avatar" style="width:24px;height:24px;font-size:10px">管</div>
+      <div class="who"><b style="font-weight:600">系统管理员</b><br><span>admin</span></div>
+      <svg style="margin-left:auto;color:var(--text-3)" width="15" height="15"><use href="#i-more"/></svg>
+    </div>
+  </aside>
+
+  <!-- ========== main ========== -->
+  <div class="main">
+    <header class="topbar">
+      <div class="crumb">校园选课系统 <span class="sep">/</span> <b id="crumb-view">总览</b></div>
+      <div class="searchbox">
+        <svg width="14" height="14"><use href="#i-search"/></svg>
+        <input id="globalSearch" placeholder="搜索需求编号、标题…" autocomplete="off" />
+        <span class="kbd">/</span>
+      </div>
+      <span class="demo-chip" title="P0 视觉定稿：需求数据来自真实需求库，用例为示例">设计预览</span>
+      <div class="tb-div"></div>
+      <div class="tmenu" id="tmenu">
+        <button class="btn icon ghost" id="themeBtn" title="切换主题"></button>
+        <div class="tpop">
+          <div class="tpop-h">主题</div>
+          <button class="titem" data-theme-set="light"><span class="sw light"></span>浅色</button>
+          <button class="titem" data-theme-set="glass"><span class="sw glass"></span>玻璃淡紫</button>
+          <button class="titem" data-theme-set="dark"><span class="sw dark"></span>深色</button>
+        </div>
+      </div>
+      <div class="avatar">管</div>
+    </header>
+
+    <div class="content" id="content">
+
+      <!-- ============ OVERVIEW ============ -->
+      <section class="view active" data-view="overview">
+        <div class="view-head">
+          <div>
+            <div class="eyebrow">PROJECT · 需求工程</div>
+            <h1 class="page-title">校园选课系统 <span class="ver">V1.0</span></h1>
+            <div class="page-sub">从需求文档到追踪矩阵，一条主线走完。当前停在「需求审核」。</div>
+          </div>
+          <div class="head-actions">
+            <button class="btn" data-toast="上传面板将在 P2 接入"><svg width="14" height="14"><use href="#i-upload"/></svg>上传文档</button>
+            <button class="btn primary" data-toast="用例生成将在 P5 接入"><svg width="14" height="14"><use href="#i-flask"/></svg>生成用例</button>
+            <button class="btn icon" data-toast="更多操作"><svg width="15" height="15"><use href="#i-more"/></svg></button>
+          </div>
+        </div>
+
+        <div class="strip">
+          <div class="metric">
+            <div class="k">需求总数</div>
+            <div class="v">25<small>条</small></div>
+            <div class="d">功能 20 · 非功能 5</div>
+          </div>
+          <div class="metric">
+            <div class="k">已确认</div>
+            <div class="v">14<small>/ 25</small></div>
+            <div class="d"><b>56%</b> 确认率 · 待审核 11</div>
+          </div>
+          <div class="metric">
+            <div class="k">待处理问题</div>
+            <div class="v">11<small>条</small></div>
+            <div class="d">模糊 6 · 冲突 5</div>
+          </div>
+          <div class="metric">
+            <div class="k">用例覆盖</div>
+            <div class="v">60<small>%</small></div>
+            <div class="d">15 / 25 条需求已关联</div>
+          </div>
+        </div>
+
+        <div class="card pipe">
+          <div class="card-h"><span class="t">主线进度</span><span class="m">第 3 步 / 共 7 步</span></div>
+          <div class="card-b">
+            <div class="steps">
+              <div class="step done" data-view="doc">
+                <div class="n">02</div><div class="nm">文档<span class="dot" style="color:var(--ok)"></span></div><div class="val">1 份 · 52 段</div>
+              </div>
+              <div class="step now" data-view="req">
+                <div class="n">03</div><div class="nm">需求</div><div class="val">25 条 · 14 已确认</div>
+              </div>
+              <div class="step warnstep" data-view="quality">
+                <div class="n">04</div><div class="nm">质量<span class="dot" style="color:var(--warn)"></span></div><div class="val">11 条待处理</div>
+              </div>
+              <div class="step" data-view="case">
+                <div class="n">05</div><div class="nm">用例</div><div class="val">13 条 · 审核 6</div>
+              </div>
+              <div class="step" data-view="matrix">
+                <div class="n">06</div><div class="nm">追踪</div><div class="val">覆盖 60%</div>
+              </div>
+              <div class="step" data-view="diff">
+                <div class="n">07</div><div class="nm">变更</div><div class="val">0 组对比</div>
+              </div>
+              <div class="step" data-view="report">
+                <div class="n">08</div><div class="nm">报告</div><div class="val">未生成</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-h"><span class="t">接下来要做什么</span><span class="m">4 项</span></div>
+            <div class="card-b" id="todos"></div>
+          </div>
+          <div class="card">
+            <div class="card-h"><span class="t">最近活动</span><span class="m">今天</span></div>
+            <div class="card-b" id="acts" style="padding-top:12px"></div>
+          </div>
+        </div>
+
+        <div class="grid-2" style="grid-template-columns:1fr 1fr 1fr">
+          <div class="card">
+            <div class="card-h"><span class="t">问题分布</span><span class="m">11 条</span></div>
+            <div class="card-b dist">
+              <div class="dist-row"><span>模糊表达</span><span class="bar"><i style="width:55%;background:var(--warn)"></i></span><span class="tnum">6</span></div>
+              <div class="dist-row"><span>需求冲突</span><span class="bar"><i style="width:45%;background:var(--danger)"></i></span><span class="tnum">5</span></div>
+              <div class="dist-row"><span>缺验收条件</span><span class="bar"><i style="width:0%;background:var(--text-3)"></i></span><span class="tnum">0</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h"><span class="t">文档版本</span><span class="m">1 份</span></div>
+            <div class="card-b" style="display:flex;align-items:center;gap:10px">
+              <svg width="16" height="16" style="color:var(--text-3)"><use href="#i-doc"/></svg>
+              <div style="min-width:0">
+                <div style="font-size:12.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">course_selection_v1.docx</div>
+                <div style="font-size:10.5px;color:var(--text-3)">V1.0 · 52 段 · 解析完成</div>
+              </div>
+              <span class="chip ok" style="margin-left:auto"><span class="dot"></span>就绪</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h"><span class="t">AI 用量</span><span class="m">本月</span></div>
+            <div class="card-b">
+              <div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:20px;font-weight:600;letter-spacing:-.02em">¥ 3.84</span><span style="font-size:11px;color:var(--text-3)">/ 预算 ¥50</span></div>
+              <div class="bar" style="margin-top:9px"><i style="width:8%;background:var(--accent)"></i></div>
+              <div style="font-size:10.5px;color:var(--text-3);margin-top:7px">38 次调用 · 平均 2.1k tokens</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ DOC ============ -->
+      <section class="view" data-view="doc">
+        <div class="view-head">
+          <div>
+            <div class="eyebrow">STEP 02 · 文档</div>
+            <h1 class="page-title">文档工作台</h1>
+            <div class="page-sub">course_selection_v1.docx · V1.0 · 52 段 · 解析完成</div>
+          </div>
+          <div class="head-actions">
+            <button class="btn" data-toast="重新解析（P2 接入）">重新解析</button>
+            <button class="btn primary" data-toast="已抽取 25 条候选需求（示例）"><svg width="14" height="14"><use href="#i-flask"/></svg>抽取需求</button>
+          </div>
+        </div>
+
+        <div class="doc-grid">
+          <div class="card pane">
+            <div class="pane-h"><svg width="13" height="13"><use href="#i-quote"/></svg>段落大纲<span style="margin-left:auto">52</span></div>
+            <div class="pane-b" id="outline"></div>
+          </div>
+
+          <div class="card pane">
+            <div class="pane-h">
+              <span style="color:var(--text-2)">course_selection_v1.docx</span>
+              <span class="chip" style="margin-left:auto">V1.0</span>
+              <span class="chip ok"><span class="dot"></span>已解析</span>
+            </div>
+            <div class="pane-b paper">
+              <div class="paper-inner" id="docbody"></div>
+            </div>
+          </div>
+
+          <div class="card pane">
+            <div class="pane-h"><svg width="13" height="13"><use href="#i-flask"/></svg>AI 候选<span style="margin-left:auto">3 条</span></div>
+            <div class="cand" id="cands" style="overflow-y:auto"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ REQUIREMENTS ============ -->
+      <section class="view" data-view="req">
+        <div class="view-head">
+          <div>
+            <div class="eyebrow">STEP 03 · 需求</div>
+            <h1 class="page-title">需求库</h1>
+            <div class="page-sub">AI 提取的候选需求，逐条确认后进入追踪与用例生成。</div>
+          </div>
+          <div class="head-actions">
+            <button class="btn" data-toast="导出（P8 接入）"><svg width="14" height="14"><use href="#i-down"/></svg>导出</button>
+            <button class="btn primary" data-toast="手动新建（P3 接入）"><svg width="14" height="14"><use href="#i-plus"/></svg>新建需求</button>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div class="seg" id="filterSeg">
+            <button class="on" data-f="all">全部 <span class="n">25</span></button>
+            <button data-f="unconfirmed">未确认 <span class="n">11</span></button>
+            <button data-f="confirmed">已确认 <span class="n">14</span></button>
+            <button data-f="ambiguous">模糊 <span class="n">6</span></button>
+            <button data-f="conflict">冲突 <span class="n">5</span></button>
+          </div>
+          <div class="sp"></div>
+          <span class="st idle"><svg width="13" height="13"><use href="#i-filter"/></svg>点击行查看详情</span>
+        </div>
+
+        <div id="bulkbar"></div>
+
+        <div class="table-wrap" id="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-cb"><input class="cb" type="checkbox" id="checkAll" /></th>
+                <th style="width:78px">编号</th>
+                <th>标题</th>
+                <th style="width:88px">类型</th>
+                <th style="width:62px">验收</th>
+                <th style="width:110px">风险</th>
+                <th style="width:86px">状态</th>
+                <th style="width:62px">来源</th>
+              </tr>
+            </thead>
+            <tbody id="reqBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ MATRIX ============ -->
+      <section class="view" data-view="matrix">
+        <div class="view-head">
+          <div>
+            <div class="eyebrow">STEP 06 · 追踪</div>
+            <h1 class="page-title">追踪矩阵</h1>
+            <div class="page-sub">需求 × 测试用例。未覆盖的需求就是下一轮测试要补的洞。</div>
+          </div>
+          <div class="head-actions">
+            <div class="seg">
+              <button class="on" data-mx="all">全部</button>
+              <button data-mx="uncovered">仅未覆盖</button>
+            </div>
+            <button class="btn" data-toast="矩阵导出（P8 接入）"><svg width="14" height="14"><use href="#i-down"/></svg>导出</button>
+          </div>
+        </div>
+
+        <div class="mx-head">
+          <div class="ring">
+            <svg width="72" height="72" viewBox="0 0 72 72">
+              <circle cx="36" cy="36" r="30" fill="none" stroke="var(--line)" stroke-width="5"/>
+              <circle cx="36" cy="36" r="30" fill="none" stroke="var(--accent)" stroke-width="5"
+                      stroke-linecap="round" stroke-dasharray="188.5" stroke-dashoffset="75.4"
+                      transform="rotate(-90 36 36)"/>
+            </svg>
+            <div class="lb"><div><b>60%</b><span>覆盖率</span></div></div>
+          </div>
+          <div>
+            <div style="font-size:12.5px;color:var(--text-2);line-height:1.8">
+              <b style="color:var(--text)">15 / 25</b> 条需求至少关联 1 条用例<br>
+              <span style="color:var(--text-3);font-size:11.5px">覆盖口径：已确认需求中，存在 ≥1 条已审核用例关联的比例</span>
+            </div>
+          </div>
+          <div style="margin-left:auto" class="legend">
+            <span><i class="mk on"></i>已关联</span>
+            <span><i class="mk off"></i>未覆盖</span>
+            <span><i class="dot" style="background:var(--warn)"></i>待澄清</span>
+          </div>
+        </div>
+
+        <div class="mx-split">
+          <div class="mx" id="matrix"></div>
+          <div class="card">
+            <div class="card-h"><span class="t">未覆盖需求</span><span class="m">10 条</span></div>
+            <div class="card-b" id="uncovered" style="padding-top:10px"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ EMPTY WORKBENCHES ============ -->
+      <section class="view" data-view="quality">
+        <div class="view-head">
+          <div>
+            <div class="eyebrow">STEP 04 · 质量</div>
+            <h1 class="page-title">质量分析</h1>
+            <div class="page-sub">规则引擎给出可复现的问题，AI 给出候选提示，结论由人确认。</div>
+          </div>
+        </div>
+        <div class="card"><div class="empty">
+          <div class="ic"><svg width="20" height="20"><use href="#i-shield"/></svg></div>
+          <h3>问题看板在设计稿中预留</h3>
+          <p>六条模糊表达与五组相互矛盾的需求已经标出（CR-015～CR-020 模糊，CR-021～CR-025 与早期条款冲突），P4 阶段接入后在这里逐条裁决。</p>
+          <div class="row">
+            <button class="btn" data-view="req">先去需求库看看</button>
+            <button class="btn ghost" data-toast="示例：CR-023「热门课程自动扩容」与 CR-008「不得扩容」冲突">看一个冲突示例</button>
+          </div>
+        </div></div>
+      </section>
+
+      <section class="view" data-view="case">
+        <div class="view-head">
+          <div>
+            <div class="eyebrow">STEP 05 · 用例</div>
+            <h1 class="page-title">测试用例</h1>
+            <div class="page-sub">正常 / 异常 / 边界三类，schema 校验通过后进入人工审核。</div>
+          </div>
+        </div>
+        <div class="card"><div class="empty">
+          <div class="ic" style="color:var(--accent);border-color:var(--accent-line);background:var(--accent-soft)"><svg width="20" height="20"><use href="#i-flask"/></svg></div>
+          <h3>13 条候选用例已生成</h3>
+          <p>当前只做到视觉稿：用例工作台会在 P5 接入，支持逐条审核、编辑步骤与预期结果、查看引用的需求是否仍然有效。</p>
+          <div class="row">
+            <button class="btn" data-view="matrix">看追踪矩阵</button>
+          </div>
+        </div></div>
+      </section>
+
+      <section class="view" data-view="diff">
+        <div class="view-head">
+          <div>
+            <div class="eyebrow">STEP 07 · 变更</div>
+            <h1 class="page-title">版本比对与影响</h1>
+            <div class="page-sub">两版文档按需求条目对齐，差异落到条目级，再查受影响的用例。</div>
+          </div>
+        </div>
+        <div class="card"><div class="empty">
+          <div class="ic"><svg width="20" height="20"><use href="#i-diff"/></svg></div>
+          <h3>还没有第二版本文档</h3>
+          <p>把容量从 50 改到 60、把退课窗口拉长到 4 周，都会让若干条需求与用例失效。上传 V1.1 后这里会给出左右对照与影响清单。</p>
+          <div class="row"><button class="btn" data-toast="上传 V1.1（P7 接入）">上传新版本</button></div>
+        </div></div>
+      </section>
+
+      <section class="view" data-view="report">
+        <div class="view-head">
+          <div>
+            <div class="eyebrow">STEP 08 · 报告</div>
+            <h1 class="page-title">质量报告</h1>
+            <div class="page-sub">每个数字都能从数据库独立复算——报告的价值在于可核对。</div>
+          </div>
+        </div>
+        <div class="card"><div class="empty">
+          <div class="ic"><svg width="20" height="20"><use href="#i-chart"/></svg></div>
+          <h3>报告尚未生成</h3>
+          <p>需求清单、问题列表、追踪矩阵、覆盖率、用例审核状态，一次导出 CSV / Excel，导出值与页面一致。</p>
+          <div class="row"><button class="btn primary" data-toast="生成报告（P8 接入）">生成报告</button></div>
+        </div></div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- drawer -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dh">
+    <div>
+      <div class="id" id="dId"></div>
+      <div class="ti" id="dTi"></div>
+    </div>
+    <button class="btn icon ghost x" id="dClose"><svg width="15" height="15"><use href="#i-x"/></svg></button>
+  </div>
+  <div class="db" id="dBody"></div>
+  <div class="df">
+    <button class="btn primary" id="dOk" style="flex:1"><svg width="14" height="14"><use href="#i-check"/></svg>确认</button>
+    <button class="btn danger" id="dNo" style="flex:1">驳回</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<script id="p0-data" type="application/json">{"project":{"name":"校园选课系统","version":"V1.0"},"doc":{"title":"校园选课系统需求说明书","name":"course_selection_v1.docx","version":"V1.0","paras":[{"n":0,"t":"校园选课系统需求说明书 V1.0","h":true},{"n":1,"t":"本文档用于 RATGP 平台实验，故意包含清晰、模糊、矛盾三类需求。","h":false},{"n":2,"t":"CR-001 登录认证","h":true},{"n":3,"t":"学生、教师、管理员分别使用学号/工号+密码登录；连续 5 次失败锁定 10 分钟。","h":false},{"n":4,"t":"CR-002 课程查询","h":true},{"n":5,"t":"学生可按课程名称、教师、院系、上课时间组合查询本学期课程，结果分页每页 20 条。","h":false},{"n":6,"t":"CR-003 选课时间窗口","h":true},{"n":7,"t":"选课窗口为每学期第 1 周周一 8:00 至第 2 周周五 18:00，窗口外不可选课。","h":false},{"n":8,"t":"CR-004 时间冲突校验","h":true},{"n":9,"t":"提交选课时校验同一时间段课程冲突；冲突则拒绝并提示冲突课程。","h":false},{"n":10,"t":"CR-005 先修课校验","h":true},{"n":11,"t":"选课前校验先修课，未通过先修课的学生不得选择该课程。","h":false},{"n":12,"t":"CR-006 选课门数上限","h":true},{"n":13,"t":"每学期每名学生最多选 6 门课程，第 7 门应拒绝。","h":false},{"n":14,"t":"CR-007 退课截止","h":true},{"n":15,"t":"退课截止时间为第 2 周周五 18:00，截止后不可退课。","h":false},{"n":16,"t":"CR-008 课程容量","h":true},{"n":17,"t":"课程默认容量 50 人，管理员不得扩容；第 51 人选课应拒绝。","h":false},{"n":18,"t":"CR-009 成绩发布后不可改","h":true},{"n":19,"t":"成绩录入并发布后不可修改；如需更正走线下审批。","h":false},{"n":20,"t":"CR-010 教师开课申请","h":true},{"n":21,"t":"教师可提交开课申请，填写课程名、学分、容量、时间、地点、先修课，提交后待审。","h":false},{"n":22,"t":"CR-011 管理员审核开课","h":true},{"n":23,"t":"管理员审核开课申请，通过后课程进入可选列表；拒绝需填写原因。","h":false},{"n":24,"t":"CR-012 成绩查询","h":true},{"n":25,"t":"学生可查询本人已选课程和已发布成绩，不能查看他人成绩。","h":false},{"n":26,"t":"CR-013 选课结果通知","h":true},{"n":27,"t":"选课结果生成后 5 分钟内发送站内信，失败重试 3 次。","h":false},{"n":28,"t":"CR-014 统计报表导出","h":true},{"n":29,"t":"管理员可导出选课统计 CSV，字段含课程、容量、已选人数、选课率，使用 UTF-8 BOM。","h":false},{"n":30,"t":"CR-015 系统响应快速","h":true},{"n":31,"t":"系统响应快速，学生查询课程时无明显等待。","h":false,"hl":"系统响应<em>快速</em>，学生查询课程时无<em>明显</em>等待。"},{"n":32,"t":"CR-016 界面友好美观","h":true},{"n":33,"t":"系统界面友好美观，操作便捷。","h":false,"hl":"系统界面<em>友好</em><em>美观</em>，操作<em>便捷</em>。"},{"n":34,"t":"CR-017 通知及时","h":true},{"n":35,"t":"选课结果通知应及时，确保学生尽快知晓。","h":false,"hl":"选课结果通知应<em>及时</em>，确保学生<em>尽快</em>知晓。"},{"n":36,"t":"CR-018 课程推荐合理","h":true},{"n":37,"t":"系统能根据学生兴趣推荐合理课程。","h":false,"hl":"系统能根据学生兴趣推荐<em>合理</em>课程。"},{"n":38,"t":"CR-019 高并发稳定","h":true},{"n":39,"t":"系统在高并发选课期间保持稳定。","h":false,"hl":"系统在高并发选课期间保持<em>稳定</em>。"},{"n":40,"t":"CR-020 选课公平高效","h":true},{"n":41,"t":"选课过程应公平高效，避免拥堵。","h":false,"hl":"选课过程应公平<em>高效</em>，避免拥堵。"},{"n":42,"t":"CR-021 允许选 8 门","h":true},{"n":43,"t":"允许学生每学期选 8 门课程。","h":false},{"n":44,"t":"CR-022 四周内可退课","h":true},{"n":45,"t":"开学后 4 周内学生可无条件退课。","h":false},{"n":46,"t":"CR-023 热门课程自动扩容","h":true},{"n":47,"t":"热门课程可根据选课人数自动扩容至 100 人。","h":false},{"n":48,"t":"CR-024 成绩 7 天内可改","h":true},{"n":49,"t":"教师可在成绩发布后 7 天内任意修改成绩。","h":false},{"n":50,"t":"CR-025 容量无限扩容","h":true},{"n":51,"t":"课程容量可根据需求无限扩容。","h":false}]},"reqs":[{"id":"CR-001","title":"登录认证","desc":"学生、教师、管理员分别使用学号/工号+密码登录；连续5次失败锁定10分钟。","type":"functional","acc":["学生使用学号+密码登录成功","教师使用工号+密码登录成功","管理员使用工号+密码登录成功","连续5次登录失败后账户锁定10分钟","锁定期间正确密码也无法登录"],"risks":[],"status":"confirmed","para":3,"ratio":0.949,"raw":"学生、教师、管理员分别使用学号/工号+密码登录；连续 5 次失败锁定 10 分钟。","covered":true,"hitWords":[],"conflictWith":"","conflictNote":""},{"id":"CR-002","title":"课程查询","desc":"学生可按课程名称、教师、院系、上课时间组合查询本学期课程，结果分页每页20条。","type":"functional","acc":["支持按课程名称、教师、院系、上课时间的任意组合查询","查询结果仅包含本学期课程","结果分页展示，每页20条"],"risks":[],"status":"confirmed","para":5,"ratio":0.975,"raw":"学生可按课程名称、教师、院系、上课时间组合查询本学期课程，结果分页每页 20 条。","covered":true,"hitWords":[],"conflictWith":"","conflictNote":""},{"id":"CR-003","title":"选课时间窗口","desc":"选课窗口为每学期第1周周一8:00至第2周周五18:00，窗口外不可选课。","type":"functional","acc":["窗口内允许选课","窗口开始前拒绝选课","窗口结束后拒绝选课"],"risks":[],"status":"confirmed","para":7,"ratio":0.914,"raw":"选课窗口为每学期第 1 周周一 8:00 至第 2 周周五 18:00，窗口外不可选课。","covered":true,"hitWords":[],"conflictWith":"","conflictNote":""},{"id":"CR-004","title":"时间冲突校验","desc":"提交选课时校验同一时间段课程冲突；冲突则拒绝并提示冲突课程。","type":"functional","acc":["选课时间与已选课程无冲突时允许提交","存在时间冲突时拒绝选课","拒绝时提示具体冲突课程"],"risks":[],"status":"confirmed","para":9,"ratio":1.0,"raw":"提交选课时校验同一时间段课程冲突；冲突则拒绝并提示冲突课程。","covered":true,"hitWords":[],"conflictWith":"","conflictNote":""},{"id":"CR-005","title":"先修课校验","desc":"选课前校验先修课，未通过先修课的学生不得选择该课程。","type":"functional","acc":["已通过先修课的学生允许选课","未通过先修课的学生拒绝选课"],"risks":[],"status":"confirmed","para":11,"ratio":1.0,"raw":"选课前校验先修课，未通过先修课的学生不得选择该课程。","covered":true,"hitWords":[],"conflictWith":"","conflictNote":""},{"id":"CR-006","title":"选课门数上限","desc":"每学期每名学生最多选6门课程，第7门应拒绝。","type":"functional","acc":["已选课程少于6门时允许选课","已选课程达到6门时拒绝第7门选课"],"risks":[],"status":"confirmed","para":13,"ratio":0.917,"raw":"每学期每名学生最多选 6 门课程，第 7 门应拒绝。","covered":true,"hitWords":[],"conflictWith":"","conflictNote":""},{"id":"CR-007","title":"退课截止","desc":"退课截止时间为第2周周五18:00，截止后不可退课。","type":"functional","acc":["截止时间前允许退课","截止时间后拒绝退课"],"risks":[],"status":"confirmed","para":15,"ratio":0.945,"raw":"退课截止时间为第 2 周周五 18:00，截止后不可退课。","covered":true,"hitWords":[],"conflictWith":"","conflictNote":""},{"id":"CR-008","title":"课程容量","desc":"课程默认容量50人，管理员不得扩容；第51人选课应拒绝。","type":"functional","acc":["课程默认容量为50人","已选人数小于50时允许选课","已选人数达到50时拒绝第51人选课","管理员无法扩容课程容量"],"risks":[],"status":"confirmed","para":17,"ratio":0.933,"raw":"课程默认容量 50 人，管理员不得扩容；第 51 人选课应拒绝。","covered":true,"hitWords":[],"conflictWith":"","conflictNote":""},{"id":"CR-009","title":"成绩发布后不可改","desc":"成绩录入并发布后不可修改；如需更正走线下审批。","type":"functional","acc":["成绩发布前允许修改","成绩发布后拒绝修改","成绩发布后提供线下审批更正说明"],"risks":[],"status":"confirmed","para":19,"ratio":1.0,"raw":"成绩录入并发布后不可修改；如需更正走线下审批。","covered":true,"hitWords":[],"conflictWith":"","conflictNote":""},{"id":"CR-010","title":"教师开课申请","desc":"教师可提交开课申请，填写课程名、学分、容量、时间、地点、先修课，提交后待审。","type":"functional","acc":["教师可填写课程名、学分、容量、时间、地点、先修课并提交","提交后申请状态为待审核"],"risks":[],"status":"confirmed","para":21,"ratio":1.0,"raw":"教师可提交开课申请，填写课程名、学分、容量、时间、地点、先修课，提交后待审。","covered":true,"hitWords":[],"conflictWith":"","conflictNote":""},{"id":"CR-011","title":"管理员审核开课","desc":"管理员审核开课申请，通过后课程进入可选列表；拒绝需填写原因。","type":"functional","acc":["管理员可通过开课申请，通过后课程进入可选列表","管理员可拒绝开课申请，拒绝时必须填写原因"],"risks":[],"status":"confirmed","para":23,"ratio":1.0,"raw":"管理员审核开课申请，通过后课程进入可选列表；拒绝需填写原因。","covered":true,"hitWords":[],"conflictWith":"","conflictNote":""},{"id":"CR-012","title":"成绩查询","desc":"学生可查询本人已选课程和已发布成绩，不能查看他人成绩。","type":"functional","acc":["学生可查询本人已选课程","学生可查询本人已发布成绩","学生无法查看他人成绩"],"risks":[],"status":"confirmed","para":25,"ratio":1.0,"raw":"学生可查询本人已选课程和已发布成绩，不能查看他人成绩。","covered":true,"hitWords":[],"conflictWith":"","conflictNote":""},{"id":"CR-013","title":"选课结果通知","desc":"选课结果生成后5分钟内发送站内信，失败重试3次。","type":"functional","acc":["选课结果生成后5分钟内发送站内信","发送失败时重试最多3次"],"risks":[],"status":"confirmed","para":27,"ratio":0.923,"raw":"选课结果生成后 5 分钟内发送站内信，失败重试 3 次。","covered":true,"hitWords":[],"conflictWith":"","conflictNote":""},{"id":"CR-014","title":"统计报表导出","desc":"管理员可导出选课统计CSV，字段含课程、容量、已选人数、选课率，使用UTF-8 BOM。","type":"functional","acc":["管理员可导出选课统计CSV","CSV字段包含课程、容量、已选人数、选课率","CSV文件使用UTF-8 BOM编码"],"risks":[],"status":"confirmed","para":29,"ratio":0.978,"raw":"管理员可导出选课统计 CSV，字段含课程、容量、已选人数、选课率，使用 UTF-8 BOM。","covered":true,"hitWords":[],"conflictWith":"","conflictNote":""},{"id":"CR-015","title":"系统响应快速","desc":"系统响应快速，学生查询课程时无明显等待。","type":"non_functional","acc":["学生查询课程时无明显等待（需进一步量化响应时间指标）"],"risks":["ambiguous"],"status":"unconfirmed","para":31,"ratio":1.0,"raw":"系统响应快速，学生查询课程时无明显等待。","covered":true,"hitWords":["快速","明显"],"conflictWith":"","conflictNote":""},{"id":"CR-016","title":"界面友好美观","desc":"系统界面友好美观，操作便捷。","type":"non_functional","acc":["界面友好美观、操作便捷（需进一步明确可度量标准）"],"risks":["ambiguous"],"status":"unconfirmed","para":33,"ratio":1.0,"raw":"系统界面友好美观，操作便捷。","covered":false,"hitWords":["友好","美观","便捷"],"conflictWith":"","conflictNote":""},{"id":"CR-017","title":"通知及时","desc":"选课结果通知应及时，确保学生尽快知晓。","type":"non_functional","acc":["选课结果通知及时送达（需进一步量化时限指标）"],"risks":["ambiguous"],"status":"unconfirmed","para":35,"ratio":1.0,"raw":"选课结果通知应及时，确保学生尽快知晓。","covered":false,"hitWords":["及时","尽快"],"conflictWith":"","conflictNote":""},{"id":"CR-018","title":"课程推荐合理","desc":"系统能根据学生兴趣推荐合理课程。","type":"functional","acc":["系统根据学生兴趣推荐课程（需进一步明确推荐合理性标准）"],"risks":["ambiguous"],"status":"unconfirmed","para":37,"ratio":1.0,"raw":"系统能根据学生兴趣推荐合理课程。","covered":false,"hitWords":["合理"],"conflictWith":"","conflictNote":""},{"id":"CR-019","title":"高并发稳定","desc":"系统在高并发选课期间保持稳定。","type":"non_functional","acc":["高并发选课期间系统保持稳定（需进一步量化并发量与稳定性指标）"],"risks":["ambiguous"],"status":"unconfirmed","para":39,"ratio":1.0,"raw":"系统在高并发选课期间保持稳定。","covered":false,"hitWords":["稳定"],"conflictWith":"","conflictNote":""},{"id":"CR-020","title":"选课公平高效","desc":"选课过程应公平高效，避免拥堵。","type":"non_functional","acc":["选课过程公平高效、避免拥堵（需进一步明确公平与效率的度量标准）"],"risks":["ambiguous"],"status":"unconfirmed","para":41,"ratio":1.0,"raw":"选课过程应公平高效，避免拥堵。","covered":false,"hitWords":["高效"],"conflictWith":"","conflictNote":""},{"id":"CR-021","title":"允许选8门","desc":"允许学生每学期选8门课程。","type":"functional","acc":["学生每学期可选8门课程（与CR-006最多6门矛盾，需澄清）"],"risks":["conflict"],"status":"unconfirmed","para":43,"ratio":0.929,"raw":"允许学生每学期选 8 门课程。","covered":false,"hitWords":[],"conflictWith":"CR-006","conflictNote":"CR-006 规定每学期最多 6 门，本条要求 8 门，需产品方二选一。"},{"id":"CR-022","title":"四周内可退课","desc":"开学后4周内学生可无条件退课。","type":"functional","acc":["开学后4周内允许无条件退课（与CR-007第2周周五18:00截止矛盾，需澄清）"],"risks":["conflict"],"status":"unconfirmed","para":45,"ratio":0.938,"raw":"开学后 4 周内学生可无条件退课。","covered":false,"hitWords":[],"conflictWith":"CR-007","conflictNote":"CR-007 规定第 2 周周五 18:00 后不可退课，本条允许 4 周内无条件退课。"},{"id":"CR-023","title":"热门课程自动扩容","desc":"热门课程可根据选课人数自动扩容至100人。","type":"functional","acc":["热门课程根据选课人数自动扩容至100人（与CR-008默认容量50且不得扩容矛盾，需澄清）"],"risks":["conflict"],"status":"unconfirmed","para":47,"ratio":0.955,"raw":"热门课程可根据选课人数自动扩容至 100 人。","covered":false,"hitWords":[],"conflictWith":"CR-008","conflictNote":"CR-008 规定默认容量 50 且管理员不得扩容，本条允许自动扩至 100。"},{"id":"CR-024","title":"成绩7天内可改","desc":"教师可在成绩发布后7天内任意修改成绩。","type":"functional","acc":["成绩发布后7天内教师可修改成绩（与CR-009发布后不可改矛盾，需澄清）"],"risks":["conflict"],"status":"unconfirmed","para":49,"ratio":0.95,"raw":"教师可在成绩发布后 7 天内任意修改成绩。","covered":false,"hitWords":[],"conflictWith":"CR-009","conflictNote":"CR-009 规定成绩发布后不可修改，本条允许 7 天内任意修改。"},{"id":"CR-025","title":"容量无限扩容","desc":"课程容量可根据需求无限扩容。","type":"functional","acc":["课程容量可根据需求无限扩容（与CR-008不得扩容、CR-023扩容至100人矛盾，需澄清）"],"risks":["conflict"],"status":"unconfirmed","para":51,"ratio":1.0,"raw":"课程容量可根据需求无限扩容。","covered":false,"hitWords":[],"conflictWith":"CR-008","conflictNote":"与 CR-008「不得扩容」、CR-023「扩容至 100」同时矛盾，属表述失控。"}],"cases":[{"id":"TC-001","title":"教师登录成功并校验角色权限","type":"normal","reqs":["CR-001"]},{"id":"TC-002","title":"连续 5 次失败后锁定账户 10 分钟","type":"abnormal","reqs":["CR-001"]},{"id":"TC-003","title":"按课程名 / 教师 / 院系组合查询并分页","type":"normal","reqs":["CR-002"]},{"id":"TC-004","title":"选课窗口开始前提交被拒","type":"abnormal","reqs":["CR-003"]},{"id":"TC-005","title":"退课截止时间边界：18:00 前与后","type":"boundary","reqs":["CR-007"]},{"id":"TC-006","title":"时间冲突时拒绝并提示冲突课程","type":"abnormal","reqs":["CR-004"]},{"id":"TC-007","title":"未通过先修课的学生选课被拒","type":"abnormal","reqs":["CR-005"]},{"id":"TC-008","title":"已选 6 门后提交第 7 门被拒","type":"boundary","reqs":["CR-006"]},{"id":"TC-009","title":"容量 50 人上限边界","type":"boundary","reqs":["CR-008"]},{"id":"TC-010","title":"成绩发布后修改被拒","type":"abnormal","reqs":["CR-009"]},{"id":"TC-011","title":"学生仅能查询本人成绩","type":"normal","reqs":["CR-012"]},{"id":"TC-012","title":"开课申请提交与必填校验","type":"normal","reqs":["CR-010","CR-011"]},{"id":"TC-013","title":"统计 CSV 导出字段与 UTF-8 BOM","type":"normal","reqs":["CR-013","CR-014","CR-015"]}],"candidates":[{"id":"CR-008","title":"课程容量","desc":"课程默认容量50人，管理员不得扩容；第51人选课应拒绝。","acc":["课程默认容量为50人","已选人数小于50时允许选课","已选人数达到50时拒绝第51人选课","管理员无法扩容课程容量"],"type":"functional","para":17,"risk":""},{"id":"CR-009","title":"成绩发布后不可改","desc":"成绩录入并发布后不可修改；如需更正走线下审批。","acc":["成绩发布前允许修改","成绩发布后拒绝修改","成绩发布后提供线下审批更正说明"],"type":"functional","para":19,"risk":""},{"id":"CR-010","title":"教师开课申请","desc":"教师可提交开课申请，填写课程名、学分、容量、时间、地点、先修课，提交后待审。","acc":["教师可填写课程名、学分、容量、时间、地点、先修课并提交","提交后申请状态为待审核"],"type":"functional","para":21,"risk":""}],"todos":[{"n":"11","title":"审核 11 条未确认需求","sub":"6 条含模糊表达，5 条相互冲突","view":"req","hint":"进入需求库（示例）"},{"n":"5","title":"裁决 5 组需求冲突","sub":"CR-021～CR-025 与早期条款矛盾","view":"quality","hint":"质量分析将在 P4 接入"},{"n":"10","title":"补齐 10 条未覆盖需求","sub":"优先给边界与异常场景补用例","view":"matrix","hint":"进入追踪矩阵（示例）"},{"n":"1","title":"生成质量报告","sub":"覆盖率与问题统计，可复算","view":"report","hint":"报告将在 P8 接入"}],"activity":[{"t":"10:58","k":"a","x":"上传 <b>course_selection_v1.docx</b> · V1.0"},{"t":"10:59","k":"","x":"解析完成，<b>52 段</b>，保留段落序号"},{"t":"11:00","k":"a","x":"AI 抽取 <b>25 条</b>候选需求"},{"t":"11:04","k":"g","x":"确认 <b>14 条</b>，驳回 0 条"},{"t":"11:06","k":"a","x":"生成 <b>13 条</b>候选用例（正常 5 / 异常 5 / 边界 3）"},{"t":"11:09","k":"g","x":"建立 <b>15 条</b>需求 × 用例关联"}]}</script>
+<script>
+(function () {
+  const D = JSON.parse(document.getElementById('p0-data').textContent);
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.prototype.slice.call(r.querySelectorAll(s));
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  const RISK = { ambiguous: ['模糊', 'warn'], conflict: ['冲突', 'danger'] };
+  const STATUS = { confirmed: ['已确认', 'ok'], unconfirmed: ['未确认', 'idle'] };
+
+  const state = { view: 'overview', filter: 'all', q: '', sel: new Set(), mx: 'all' };
+
+  /* ---------- sidebar / routing ---------- */
+  const TITLES = { overview: '总览', doc: '文档', req: '需求', quality: '质量', case: '用例', matrix: '追踪', diff: '变更', report: '报告' };
+
+  function view(name) {
+    if (!TITLES[name]) name = 'overview';
+    state.view = name;
+    $$('.view').forEach(v => v.classList.toggle('active', v.dataset.view === name));
+    $$('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.view === name));
+    $('#crumb-view').textContent = TITLES[name];
+    location.hash = '#/' + name;
+    $('#content').scrollTop = 0;
+    if (name === 'doc') requestAnimationFrame(scrollDocToActive);
+  }
+
+  $$('.nav-item').forEach(n => n.addEventListener('click', () => view(n.dataset.view)));
+  document.addEventListener('click', e => {
+    const t = e.target.closest('[data-view]');
+    if (t && !t.closest('.nav-item') && !t.closest('.view')) { view(t.dataset.view); return; }
+    const toastEl = e.target.closest('[data-toast]');
+    if (toastEl) toast(toastEl.dataset.toast);
+  });
+
+  /* ---------- theme ---------- */
+  const THEMES = [
+    { id: 'light', name: '浅色', icon: 'sun' },
+    { id: 'glass', name: '玻璃淡紫', icon: 'drop' },
+    { id: 'dark', name: '深色', icon: 'moon' }
+  ];
+
+  function applyTheme(t) {
+    if (!THEMES.some(x => x.id === t)) t = 'light';
+    document.documentElement.dataset.theme = t;
+    try { localStorage.setItem('p0-theme', t); } catch (e) {}
+    const th = THEMES.find(x => x.id === t);
+    $('#themeBtn').innerHTML = '<svg width="15" height="15"><use href="#i-' + th.icon + '"/></svg>';
+    $('#themeBtn').title = '主题：' + th.name;
+    $$('.titem').forEach(el => el.classList.toggle('on', el.dataset.themeSet === t));
+  }
+
+  $('#themeBtn').addEventListener('click', e => {
+    e.stopPropagation();
+    $('#tmenu').classList.toggle('on');
+  });
+  $$('.titem').forEach(el => el.addEventListener('click', () => {
+    applyTheme(el.dataset.themeSet);
+    $('#tmenu').classList.remove('on');
+  }));
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#tmenu')) $('#tmenu').classList.remove('on');
+  });
+
+  (function initTheme() {
+    const q = new URLSearchParams(location.search).get('theme');
+    let t = q;
+    if (!t) { try { t = localStorage.getItem('p0-theme'); } catch (e) {} }
+    applyTheme(t || 'light');
+  })();
+
+  /* ---------- toast ---------- */
+  let toastTimer;
+  function toast(msg) {
+    const el = $('#toast');
+    el.textContent = msg;
+    el.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('on'), 1900);
+  }
+
+  /* ---------- overview lists ---------- */
+  function renderOverview() {
+    $('#todos').innerHTML = D.todos.map(t => `
+      <div class="todo" data-view="${t.view}" data-toast="${esc(t.hint)}">
+        <div class="num">${t.n}</div>
+        <div><div class="tt">${esc(t.title)}</div><div class="ts">${esc(t.sub)}</div></div>
+        <svg class="go" width="14" height="14"><use href="#i-right"/></svg>
+      </div>`).join('');
+
+    $('#acts').innerHTML = D.activity.map(a => `
+      <div class="act">
+        <div class="time">${a.t}</div>
+        <div class="bd ${a.k}"></div>
+        <div class="tx">${a.x}</div>
+      </div>`).join('');
+  }
+
+  /* ---------- doc ---------- */
+  let activePara = 17;
+
+  function renderDoc() {
+    const P = D.doc.paras;
+    $('#outline').innerHTML = P.filter(p => p.h).map(p => `
+      <div class="outline-item h" data-para="${p.n}">
+        <span class="no">${p.n}</span><span>${esc(p.t)}</span>
+      </div>`).join('');
+
+    $('#docbody').innerHTML =
+      `<div class="doc-title">${esc(D.doc.title)}</div>
+       <div class="doc-meta">${esc(D.doc.name)} · ${esc(D.doc.version)} · ${P.length} 段 · 解析于 11-05 10:58</div>` +
+      P.filter(p => p.n !== 0).map(p => `
+        <div class="p ${p.h ? 'hd' : ''} ${p.n === activePara ? 'active' : ''}" data-para="${p.n}">
+          <div class="no">${p.n}</div>
+          <div class="tx">${p.hl || esc(p.t)}</div>
+        </div>`).join('');
+
+    $$('#docbody .p').forEach(el => el.addEventListener('click', () => setPara(+el.dataset.para)));
+    $$('#outline .outline-item').forEach(el => el.addEventListener('click', () => {
+      setPara(+el.dataset.para);
+      const target = $('#docbody .p[data-para="' + el.dataset.para + '"]');
+      if (target) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }));
+
+    // 打开时把当前需求对应的段落滚到视野中央
+    scrollDocToActive();
+
+    const c = D.candidates;
+    $('#cands').innerHTML = c.map((x, i) => i === 0 ? `
+      <div class="cand-card">
+        <div class="ch"><span class="id">${esc(x.id)}</span><span class="chip accent">候选</span><span class="chip" style="margin-left:auto">${x.type === 'functional' ? '功能' : '非功能'}</span></div>
+        <div class="ti">${esc(x.title)}</div>
+        <div class="de">${esc(x.desc)}</div>
+        <ul class="ac">${x.acc.map(a => `<li><span>${esc(a)}</span></li>`).join('')}</ul>
+        <div style="margin-top:9px;display:flex;gap:6px;flex-wrap:wrap">
+          ${x.risk ? `<span class="chip danger"><span class="dot"></span>与 ${esc(x.risk)} 冲突</span>` : ''}
+          <span class="chip"><svg width="11" height="11" style="margin-top:1px"><use href="#i-quote"/></svg>¶${x.para}</span>
+        </div>
+        <div class="ft"><button class="btn sm primary">采纳</button><button class="btn sm ghost">忽略</button></div>
+      </div>` : `
+      <div class="cand-card collapsed" data-toast="展开候选 ${esc(x.id)}">
+        <div style="display:flex;align-items:center;gap:7px"><span class="id">${esc(x.id)}</span><span style="font-size:12px;font-weight:550">${esc(x.title)}</span><span class="chip" style="margin-left:auto">${x.type === 'functional' ? '功能' : '非功能'}</span></div>
+      </div>`).join('');
+  }
+
+  function scrollDocToActive() {
+    const act = $('#docbody .p.active');
+    const pane = act && act.closest('.pane-b');
+    if (!act || !pane || !pane.clientHeight) return;
+    const top = act.getBoundingClientRect().top - pane.getBoundingClientRect().top + pane.scrollTop;
+    pane.scrollTop = Math.max(0, top - pane.clientHeight / 2 + act.offsetHeight / 2);
+  }
+
+  function setPara(n) {
+    activePara = n;
+    $$('#docbody .p').forEach(el => el.classList.toggle('active', +el.dataset.para === n));
+    $$('#outline .outline-item').forEach(el => el.classList.remove('active'));
+  }
+
+  /* ---------- requirements table ---------- */
+  function statusOf(r) { return r.status; }
+
+  function passes(r) {
+    if (state.q) {
+      const q = state.q.toLowerCase();
+      if (!(r.id + ' ' + r.title + ' ' + r.desc).toLowerCase().includes(q)) return false;
+    }
+    switch (state.filter) {
+      case 'unconfirmed': return r.status === 'unconfirmed';
+      case 'confirmed': return r.status === 'confirmed';
+      case 'ambiguous': return r.risks.includes('ambiguous');
+      case 'conflict': return r.risks.includes('conflict');
+      default: return true;
+    }
+  }
+
+  function renderTable() {
+    const rows = D.reqs.filter(passes);
+    $('#reqBody').innerHTML = rows.length ? rows.map(r => {
+      const st = STATUS[r.status];
+      const risks = r.risks.map(k => `<span class="chip ${RISK[k][1]}">${RISK[k][0]}</span>`).join(' ');
+      return `<tr data-id="${r.id}" class="${state.sel.has(r.id) ? 'sel' : ''}">
+        <td class="col-cb"><input class="cb rowcb" type="checkbox" data-id="${r.id}" ${state.sel.has(r.id) ? 'checked' : ''}></td>
+        <td class="id">${r.id}</td>
+        <td class="tt">${esc(r.title)}</td>
+        <td><span style="font-size:11.5px;color:var(--text-3)">${r.type === 'functional' ? '功能' : '非功能'}</span></td>
+        <td class="tnum">${r.acc.length}</td>
+        <td>${risks || '<span style="color:var(--text-3);font-size:11.5px">—</span>'}</td>
+        <td><span class="st ${st[1]}"><span class="dot"></span>${st[0]}</span></td>
+        <td class="src">¶${r.para}</td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="8"><div class="empty" style="padding:40px"><h3>没有匹配的需求</h3><p>换个筛选条件，或清空搜索词。</p></div></td></tr>`;
+
+    $$('#reqBody tr[data-id]').forEach(tr => {
+      tr.addEventListener('click', e => {
+        if (e.target.classList.contains('rowcb')) return;
+        openDrawer(tr.dataset.id);
+      });
+    });
+    $$('#reqBody .rowcb').forEach(cb => cb.addEventListener('change', () => {
+      if (cb.checked) state.sel.add(cb.dataset.id); else state.sel.delete(cb.dataset.id);
+      renderTable(); renderBulk();
+    }));
+    $('#checkAll').checked = rows.length > 0 && rows.every(r => state.sel.has(r.id));
+  }
+
+  function renderBulk() {
+    const n = state.sel.size;
+    $('#bulkbar').innerHTML = n ? `
+      <div class="bulkbar">
+        <b>已选 ${n} 条</b><span style="opacity:.6">·</span>
+        <button class="btn sm" data-bulk="ok">批量确认</button>
+        <button class="btn sm danger" data-bulk="no">驳回</button>
+        <div class="sp"></div>
+        <button class="btn sm ghost" data-bulk="clear">取消选择</button>
+      </div>` : '';
+    $$('[data-bulk]').forEach(b => b.addEventListener('click', () => {
+      if (b.dataset.bulk === 'clear') { state.sel.clear(); renderTable(); renderBulk(); return; }
+      toast(b.dataset.bulk === 'ok' ? `已确认 ${n} 条需求（示例）` : `已驳回 ${n} 条（示例）`);
+      state.sel.clear(); renderTable(); renderBulk();
+    }));
+  }
+
+  $('#checkAll').addEventListener('change', e => {
+    const rows = D.reqs.filter(passes);
+    if (e.target.checked) rows.forEach(r => state.sel.add(r.id)); else state.sel.clear();
+    renderTable(); renderBulk();
+  });
+
+  $$('#filterSeg button').forEach(b => b.addEventListener('click', () => {
+    $$('#filterSeg button').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    state.filter = b.dataset.f;
+    renderTable();
+  }));
+
+  $('#globalSearch').addEventListener('input', e => {
+    state.q = e.target.value.trim();
+    if (state.view !== 'req') view('req');
+    renderTable();
+  });
+
+  /* ---------- drawer ---------- */
+  function openDrawer(id) {
+    const r = D.reqs.find(x => x.id === id);
+    if (!r) return;
+    const st = STATUS[r.status];
+    $('#dId').textContent = r.id;
+    $('#dTi').textContent = r.title;
+
+    const notices = [];
+    if (r.risks.includes('ambiguous')) {
+      notices.push(`<div class="notice warn"><svg width="14" height="14" style="flex:none;margin-top:1px"><use href="#i-alert"/></svg><div>命中模糊表达：${r.hitWords.map(w => '「' + w + '」').join(' ')} —— 建议补充可量化的指标后再确认。</div></div>`);
+    }
+    if (r.risks.includes('conflict')) {
+      notices.push(`<div class="notice"><svg width="14" height="14" style="flex:none;margin-top:1px"><use href="#i-alert"/></svg><div>与 ${r.conflictWith} 冲突：${r.conflictNote}</div></div>`);
+    }
+
+    $('#dBody').innerHTML = `
+      <div class="dsec" style="display:flex;gap:6px;flex-wrap:wrap">
+        <span class="chip">${r.type === 'functional' ? '功能需求' : '非功能需求'}</span>
+        <span class="chip ${st[1]}"><span class="dot"></span>${st[0]}</span>
+        <span class="chip">验收 ${r.acc.length} 条</span>
+      </div>
+      ${notices.join('')}
+      <div class="dsec" style="margin-top:14px">
+        <div class="lb">需求描述</div>
+        <p>${esc(r.desc)}</p>
+      </div>
+      <div class="dsec">
+        <div class="lb">验收条件</div>
+        <ol class="aclist">${r.acc.map((a, i) => `<li><i>${String(i + 1).padStart(2, '0')}</i><span>${esc(a)}</span></li>`).join('')}</ol>
+      </div>
+      <div class="dsec">
+        <div class="lb">来源段落</div>
+        <div class="quote"><span class="q">¶${r.para} · 相似度 ${r.ratio.toFixed(2)}</span>${esc(r.raw)}</div>
+      </div>`;
+    $('#drawer').classList.add('on');
+    $('#scrim').classList.add('on');
+    $('#dOk').onclick = () => { toast(`${r.id} 已确认（示例）`); closeDrawer(); };
+    $('#dNo').onclick = () => { toast(`${r.id} 已驳回（示例）`); closeDrawer(); };
+  }
+  function closeDrawer() { $('#drawer').classList.remove('on'); $('#scrim').classList.remove('on'); }
+  $('#dClose').addEventListener('click', closeDrawer);
+  $('#scrim').addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeDrawer(); $('#tmenu').classList.remove('on'); }
+    if (e.key === '/' && document.activeElement !== $('#globalSearch')) { e.preventDefault(); $('#globalSearch').focus(); }
+  });
+
+  /* ---------- matrix ---------- */
+  function renderMatrix() {
+    const cases = D.cases;
+    const rows = state.mx === 'uncovered' ? D.reqs.filter(r => !r.covered) : D.reqs;
+    const covered = D.reqs.filter(r => r.covered).length;
+
+    $('#matrix').innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th class="rowh" style="z-index:4">需求 <span style="color:var(--text-3);font-weight:400">${rows.length} / ${D.reqs.length}</span></th>
+            ${cases.map(c => `<th class="ct" title="${esc(c.title)}">${c.id.replace('TC-', '')}<span class="ty">${c.type === 'normal' ? '正常' : c.type === 'abnormal' ? '异常' : '边界'}</span></th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr class="${r.covered ? '' : 'uncovered'}" data-id="${r.id}">
+              <th class="rowh"><span class="rid">${r.id}</span><span class="rt">${esc(r.title)}</span></th>
+              ${cases.map(c => `<td class="c" title="${esc(c.id + ' ' + c.title)}">${c.reqs.includes(r.id) ? '<i class="mk on"></i>' : '<i class="mk off"></i>'}</td>`).join('')}
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+
+    $('#uncovered').innerHTML = D.reqs.filter(r => !r.covered).map(r => `
+      <div class="todo" style="padding:9px 0;gap:10px" data-toast="查看 ${r.id}">
+        <div style="width:14px;display:flex;justify-content:center;flex:none">${r.risks.length ? '<span class="dot" style="background:var(--warn)"></span>' : '<span style="width:6px;height:1px;background:var(--line-strong);display:block"></span>'}</div>
+        <div style="min-width:0"><div class="tt" style="font-size:12px">${esc(r.title)}</div><div class="ts">${r.id} · ${r.risks.length ? '待澄清' : '未生成用例'}</div></div>
+        <svg class="go" width="13" height="13"><use href="#i-right"/></svg>
+      </div>`).join('');
+    $$('#uncovered .todo').forEach(el => el.addEventListener('click', () => toast(el.dataset.toast)));
+  }
+
+  $$('[data-mx]').forEach(b => b.addEventListener('click', () => {
+    $$('[data-mx]').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    state.mx = b.dataset.mx;
+    renderMatrix();
+  }));
+
+  /* ---------- boot ---------- */
+  if (new URLSearchParams(location.search).has('static')) {
+    document.documentElement.setAttribute('data-static', '');
+  }
+  if (new URLSearchParams(location.search).has('menu')) {
+    $('#tmenu').classList.add('on');
+  }
+  renderOverview();
+  renderDoc();
+  renderTable();
+  renderBulk();
+  renderMatrix();
+
+  const parts = (location.hash || '').replace('#/', '').split('/');
+  view(TITLES[parts[0]] ? parts[0] : 'overview');
+  if (parts[1]) setTimeout(() => openDrawer(parts[1]), 80);
+})();
+</script>
+</body>
+</html>

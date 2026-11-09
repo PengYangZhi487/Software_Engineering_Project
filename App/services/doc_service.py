@@ -9,14 +9,19 @@ ALLOWED_EXTS = {".txt", ".docx"}
 
 
 def parse_docx(file_path: str):
-    """解析 DOCX，返回 (全文, 段落索引列表)。"""
+    """解析 DOCX，返回 (全文, 段落索引列表)。
+
+    段落索引额外带 style（Heading 1 / Heading 2 / Normal ...），
+    供 API 层标记标题、前端做大纲；locate_service 只读 raw / para_no，不受影响。
+    """
     doc = Document(file_path)
     full_text = []
     para_index = []
     for i, para in enumerate(doc.paragraphs):
         if para.text.strip():
             full_text.append(para.text)
-            para_index.append({"para_no": i, "raw": para.text})
+            style = para.style.name if para.style is not None else "Normal"
+            para_index.append({"para_no": i, "raw": para.text, "style": style})
     return "\n".join(full_text), para_index
 
 
@@ -38,7 +43,7 @@ def parse_txt(file_path: str):
     for i, line in enumerate(text.splitlines()):
         if line.strip():
             full_text.append(line)
-            para_index.append({"para_no": i, "raw": line})
+            para_index.append({"para_no": i, "raw": line, "style": "Normal"})
     return "\n".join(full_text), para_index
 
 

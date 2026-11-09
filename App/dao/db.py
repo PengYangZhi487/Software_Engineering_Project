@@ -4,7 +4,8 @@ import hashlib
 
 # 动态获取 App 目录的绝对路径
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(BASE_DIR, 'data', 'ratgp.db')
+# 允许用环境变量覆盖（测试、联调时指向临时库）
+DB_PATH = os.environ.get('RATGP_DB') or os.path.join(BASE_DIR, 'data', 'ratgp.db')
 
 def get_connection():
     """获取数据库连接，并开启外键约束"""
@@ -25,7 +26,7 @@ def _migrate_requirement_add_req_type(conn):
         "ALTER TABLE Requirement ADD COLUMN req_type TEXT DEFAULT 'functional'"
     )
     conn.commit()
-    print("⚙️ 已为 Requirement 表补列: req_type")
+    print("[migrate] 已为 Requirement 表补列: req_type")
 
 def init_db():
     """初始化数据库，建表，并写入默认管理员"""
@@ -147,13 +148,13 @@ def init_db():
             "INSERT INTO User (username, password_hash, display_name) VALUES (?, ?, ?)",
             ("admin", pwd_hash, "系统管理员")
         )
-        print("✅ 默认管理员 admin 创建成功。")
+        print("[init] 默认管理员 admin 创建成功。")
     except sqlite3.IntegrityError:
         pass # 已经存在则跳过
         
     conn.commit()
     conn.close()
-    print(f"✅ 数据库初始化完成，路径: {DB_PATH}")
+    print(f"[init] 数据库初始化完成，路径: {DB_PATH}")
 
 if __name__ == "__main__":
     init_db()
