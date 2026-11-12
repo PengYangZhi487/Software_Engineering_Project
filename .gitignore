@@ -8,6 +8,9 @@ env/
 # 忽略环境变量（保护你的 API Key）
 .env
 *.env
+# .env 的所有变体（.env.local / .env.production ...），示例文件除外
+.env*
+!.env.example
 
 # 忽略本地数据库文件
 *.db
