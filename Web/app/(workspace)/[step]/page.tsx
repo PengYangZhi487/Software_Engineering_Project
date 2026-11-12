@@ -14,27 +14,6 @@ interface StepCopy {
 }
 
 const STEPS: Record<string, StepCopy> = {
-  document: {
-    eyebrow: "STEP 02 · 文档",
-    title: "文档工作台",
-    sub: "上传 DOCX / TXT，解析段落并保留原文位置。",
-    icon: "doc",
-    emptyTitle: "文档工作台在 P2 接入",
-    emptyBody:
-      "P2 会把 App/services/doc_service.py 包一层接口：上传 → 解析 52 段 → 保留段落序号，并把「原文 ↔ 需求」联动做进来。",
-    primary: { href: "/requirements", label: "先看需求库" },
-  },
-  quality: {
-    eyebrow: "STEP 04 · 质量",
-    title: "质量分析",
-    sub: "规则引擎给出可复现的问题，AI 给出候选提示，结论由人确认。",
-    icon: "shield",
-    emptyTitle: "问题看板在 P4 接入",
-    emptyBody:
-      "六条模糊表达（CR-015～CR-020）与五组冲突（CR-021～CR-025）已经算出来了，P4 会在这里逐条裁决，并区分「规则命中」与「AI 建议」。",
-    primary: { href: "/requirements", label: "先去需求库看看" },
-    secondary: "示例：CR-023「热门课程自动扩容」与 CR-008「不得扩容」冲突",
-  },
   cases: {
     eyebrow: "STEP 05 · 用例",
     title: "测试用例",

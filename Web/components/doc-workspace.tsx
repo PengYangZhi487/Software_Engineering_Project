@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { API_BASE } from "@/lib/api";
 import type { ApiDocumentMeta, ApiParagraph } from "@/lib/api";
 import { formatApiTime } from "@/lib/api";
 import type { Requirement } from "@/lib/types";
@@ -14,16 +16,57 @@ export function DocWorkspace({
   apiError,
   requirements,
   initialUploadOpen = false,
+  initialExtractOpen = false,
 }: {
   doc: ApiDocumentMeta | null;
   paragraphs: ApiParagraph[];
   apiError: string | null;
   requirements: Requirement[];
   initialUploadOpen?: boolean;
+  initialExtractOpen?: boolean;
 }) {
+  const router = useRouter();
   const [uploadOpen, setUploadOpen] = useState(initialUploadOpen);
   const [selected, setSelected] = useState<number | null>(null);
+  const [extractOpen, setExtractOpen] = useState(initialExtractOpen);
+  const [extracting, setExtracting] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [extractMsg, setExtractMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const paperRef = useRef<HTMLDivElement>(null);
+
+  // 抽取期间显示已等待秒数（LLM 通常 10–30s，没有进度条也要让人知道还活着）
+  useEffect(() => {
+    if (!extracting) return;
+    setElapsed(0);
+    const timer = setInterval(() => setElapsed((s) => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, [extracting]);
+
+  async function runExtract() {
+    if (!doc) return;
+    setExtracting(true);
+    setExtractMsg(null);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/projects/${doc.project_id}/requirements/extract?replace=true&doc_id=${doc.doc_id}`,
+        { method: "POST" },
+      );
+      const data = (await res.json().catch(() => null)) as
+        | { created?: number; detail?: string }
+        | null;
+      if (!res.ok) throw new Error(data?.detail ?? `HTTP ${res.status}`);
+      setExtractOpen(false);
+      setExtractMsg({
+        kind: "ok",
+        text: `已抽取 ${data?.created ?? 0} 条需求，编号从 CR-001 起，状态为「未审核」`,
+      });
+      router.refresh();
+    } catch (err) {
+      setExtractMsg({ kind: "error", text: err instanceof Error ? err.message : "抽取失败" });
+    } finally {
+      setExtracting(false);
+    }
+  }
 
   const headings = useMemo(() => paragraphs.filter((p) => p.is_heading), [paragraphs]);
 
@@ -80,17 +123,67 @@ export function DocWorkspace({
           <button
             className="btn primary"
             type="button"
-            disabled
-            title="P3 接入需求抽取接口后可用"
-            style={{ opacity: 0.55, cursor: "not-allowed" }}
+            disabled={!doc || extracting || !!apiError}
+            title={doc ? "调用大模型从文档重新抽取需求" : "先上传一份文档"}
+            style={!doc || apiError ? { opacity: 0.55, cursor: "not-allowed" } : undefined}
+            onClick={() => {
+              if (!doc) return;
+              if (requirements.length > 0) {
+                setExtractOpen(true);
+                setExtractMsg(null);
+              } else {
+                void runExtract();
+              }
+            }}
           >
             <Icon name="flask" />
-            抽取需求
+            {extracting ? `抽取中 ${elapsed}s` : "抽取需求"}
           </button>
         </div>
       </div>
 
       {uploadOpen ? <UploadCard onClose={() => setUploadOpen(false)} /> : null}
+
+      {extractOpen ? (
+        <div className="card extract-card">
+          <div className="card-h">
+            <span className="t">重新抽取需求</span>
+            <span className="m">会覆盖当前 {requirements.length} 条</span>
+          </div>
+          <div className="card-b extract-body">
+            <div className="extract-note">
+              将调用大模型重新解析整份文档，并清空当前项目的 {requirements.length} 条需求（含已确认的）。
+              预计 10–30 秒，期间不要关闭页面。
+            </div>
+            <button
+              className="btn ghost"
+              type="button"
+              disabled={extracting}
+              onClick={() => setExtractOpen(false)}
+            >
+              取消
+            </button>
+            <button className="btn primary" type="button" disabled={extracting} onClick={runExtract}>
+              {extracting ? `抽取中… ${elapsed}s` : "覆盖并抽取"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {extracting && !extractOpen ? (
+        <div className="extract-status">正在调用大模型抽取… 已等待 {elapsed}s</div>
+      ) : null}
+
+      {extractMsg ? (
+        <div className={`extract-status ${extractMsg.kind}`}>
+          {extractMsg.text}
+          {extractMsg.kind === "ok" ? (
+            <Link href="/requirements" style={{ marginLeft: 10, textDecoration: "underline" }}>
+              去核对
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
 
       {apiError ? (
         <div className="card">
@@ -130,7 +223,9 @@ export function DocWorkspace({
       ) : (
         <div
           className="doc-grid"
-          style={{ height: uploadOpen ? "calc(100vh - 372px)" : undefined }}
+          style={{
+            height: uploadOpen ? "calc(100vh - 372px)" : extractOpen ? "calc(100vh - 330px)" : undefined,
+          }}
         >
           <div className="card pane">
             <div className="pane-h">

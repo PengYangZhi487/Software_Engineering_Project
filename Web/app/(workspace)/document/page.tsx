@@ -12,9 +12,9 @@ export const metadata = { title: "文档工作台 · RATGP" };
 export default async function DocumentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ upload?: string }>;
+  searchParams: Promise<{ upload?: string; extract?: string }>;
 }) {
-  const { upload } = await searchParams;
+  const { upload, extract } = await searchParams;
 
   let doc: ApiDocumentMeta | null = null;
   let paragraphs: ApiParagraph[] = [];
@@ -37,6 +37,7 @@ export default async function DocumentPage({
       apiError={apiError}
       requirements={feed.items}
       initialUploadOpen={upload === "1"}
+      initialExtractOpen={extract === "1"}
     />
   );
 }

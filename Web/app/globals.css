@@ -661,3 +661,29 @@ a.nav-item { text-decoration: none; }
 /* P3：状态色 + 页面标题里的小标签 */
 .st.danger { color: var(--danger); }
 .page-title > .chip { transform: translateY(-2px); }
+
+/* P4：质量分析问题列表 */
+.issue-list { display: flex; flex-direction: column; }
+.issue {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px 16px; border-bottom: 1px solid var(--line);
+}
+.issue:last-child { border-bottom: 0; }
+.issue:hover { background: var(--surface-2); }
+.issue > .dot { margin-top: 6px; }
+.iss-main { min-width: 0; flex: 1; }
+.iss-title { font-size: 12.5px; font-weight: 550; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.iss-sub { font-size: 11.5px; color: var(--text-2); margin-top: 4px; line-height: 1.65; }
+.iss-ids { font-family: var(--mono); font-size: 10.5px; color: var(--text-3); white-space: nowrap; padding-top: 3px; }
+
+/* P4：抽取需求确认条 */
+.extract-card { margin-bottom: 14px; }
+.extract-body { display: flex; align-items: center; gap: 12px; }
+.extract-note { flex: 1; font-size: 12.5px; color: var(--text-2); line-height: 1.7; }
+.extract-status {
+  margin-bottom: 14px; padding: 9px 12px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--surface-2);
+  font-size: 12px; color: var(--text-2);
+}
+.extract-status.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 25%, transparent); background: var(--ok-soft); }
+.extract-status.error { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 25%, transparent); background: var(--danger-soft); }

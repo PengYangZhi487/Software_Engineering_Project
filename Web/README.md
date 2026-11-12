@@ -44,7 +44,12 @@ Node ≥ 18；本项目在 Node 24 + Next 15.5 上验证。
 - 后端 `POST /api/projects/1/requirements/extract` 会调用 DeepSeek 抽取，结果以 `未审核` 入库、编号由程序生成（`CR-001…`）。
 - 前端 `/requirements` 读 `GET /api/projects/1/requirements`，抽屉里的 **确认 / 驳回 / 撤回** 直接 `PATCH /api/requirements/{id}`，成功后 `router.refresh()`。
 - 顶部与侧栏的数字（需求总数、模糊数、待审核）都来自同一次服务端取数，和列表一致。
-- 抽取接口暂时没有 UI 按钮（`/document` 的「抽取需求」按钮还是灰的），先用 Swagger 或 curl 触发，见 `App/api/README.md`。
+
+## P4：质量分析与抽取入口
+
+- **抽取需求**：`/document` 的按钮已点亮。已有需求时会先弹确认条（会覆盖 N 条，含已确认的），确认后调 `POST .../requirements/extract?replace=true`，期间显示已等待秒数。
+- **质量分析**：`/quality` 读 `GET /api/projects/1/quality/issues`，按 模糊 / 冲突 / 缺验收 筛选；每条问题可直接跳到对应需求。
+- 扫描是确定性的：同一份数据每次结果一致，不调 LLM、不改数据；侧栏「质量」与概览的「待处理问题」都取自它。
 
 ## 结构
 

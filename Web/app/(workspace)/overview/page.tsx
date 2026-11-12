@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@/components/icon";
-import { loadRequirements } from "@/lib/server";
+import { loadQuality, loadRequirements } from "@/lib/server";
 
 const ACTIVITY = [
   { t: "10:58", k: "a", x: <>上传 <b>course_selection_v1.docx</b> · V1.0</> },
@@ -12,17 +12,22 @@ const ACTIVITY = [
 
 export default async function OverviewPage() {
   const feed = await loadRequirements(1);
+  const quality = await loadQuality(1);
   const { items, counts, source, error } = feed;
+  const byKind = quality.byKind;
+  const ambiguousIssues = byKind.ambiguous ?? 0;
+  const conflictIssues = byKind.conflict ?? 0;
+  const missingIssues = byKind.missing_acceptance ?? 0;
 
   const functional = items.filter((r) => r.type === "functional").length;
   const nonFunctional = items.length - functional;
   const confirmRate = counts.total ? Math.round((counts.confirmed / counts.total) * 100) : 0;
-  const issueTotal = Math.max(counts.ambiguous, 1);
+  const issueTotal = Math.max(quality.total, 1);
 
   const steps = [
     { href: "/document", n: "02", name: "文档", val: "1 份 · 52 段", tone: "done" },
     { href: "/requirements", n: "03", name: "需求", val: `${counts.total} 条 · ${counts.confirmed} 已确认`, tone: "now" },
-    { href: "/quality", n: "04", name: "质量", val: `${counts.ambiguous} 条模糊`, tone: counts.ambiguous ? "warn" : "" },
+    { href: "/quality", n: "04", name: "质量", val: `${quality.total} 条问题`, tone: quality.total ? "warn" : "" },
     { href: "/cases", n: "05", name: "用例", val: "0 条（P5）", tone: "" },
     { href: "/trace", n: "06", name: "追踪", val: "待接入（P6）", tone: "" },
     { href: "/changes", n: "07", name: "变更", val: "0 组对比", tone: "" },
@@ -79,12 +84,14 @@ export default async function OverviewPage() {
           </div>
         </div>
         <div className="metric">
-          <div className="k">模糊需求</div>
+          <div className="k">待处理问题</div>
           <div className="v">
-            {counts.ambiguous}
+            {quality.total}
             <small>条</small>
           </div>
-          <div className="d">命中模糊词，P4 统一裁决</div>
+          <div className="d">
+            模糊 {ambiguousIssues} · 冲突 {conflictIssues}
+          </div>
         </div>
         <div className="metric">
           <div className="k">用例覆盖</div>
@@ -134,9 +141,9 @@ export default async function OverviewPage() {
                 href: "/requirements",
               },
               {
-                n: String(counts.ambiguous),
-                title: `裁决 ${counts.ambiguous} 条模糊需求`,
-                sub: "命中「快速 / 及时 / 稳定」等词，P4 统一处理",
+                n: String(quality.total),
+                title: `裁决 ${quality.total} 条质量问题`,
+                sub: `模糊 ${ambiguousIssues} · 冲突 ${conflictIssues} · 缺验收 ${missingIssues}`,
                 href: "/quality",
               },
               {
@@ -182,32 +189,29 @@ export default async function OverviewPage() {
         <div className="card">
           <div className="card-h">
             <span className="t">问题分布</span>
-            <span className="m">{counts.ambiguous + counts.rejected} 条</span>
+            <span className="m">{quality.total} 条</span>
           </div>
           <div className="card-b dist">
             <div className="dist-row">
               <span>模糊表达</span>
               <span className="bar">
-                <i style={{ width: `${(counts.ambiguous / issueTotal) * 100}%`, background: "var(--warn)" }} />
+                <i style={{ width: `${(ambiguousIssues / issueTotal) * 100}%`, background: "var(--warn)" }} />
               </span>
-              <span className="tnum">{counts.ambiguous}</span>
+              <span className="tnum">{ambiguousIssues}</span>
             </div>
             <div className="dist-row">
-              <span>已驳回</span>
+              <span>需求冲突</span>
               <span className="bar">
-                <i
-                  style={{
-                    width: `${(counts.rejected / Math.max(counts.rejected + counts.ambiguous, 1)) * 100}%`,
-                    background: "var(--danger)",
-                  }}
-                />
+                <i style={{ width: `${(conflictIssues / issueTotal) * 100}%`, background: "var(--danger)" }} />
               </span>
-              <span className="tnum">{counts.rejected}</span>
+              <span className="tnum">{conflictIssues}</span>
             </div>
             <div className="dist-row">
-              <span>冲突检测</span>
-              <span className="bar" />
-              <span className="tnum">—</span>
+              <span>缺验收条件</span>
+              <span className="bar">
+                <i style={{ width: `${(missingIssues / issueTotal) * 100}%`, background: "var(--text-3)" }} />
+              </span>
+              <span className="tnum">{missingIssues}</span>
             </div>
           </div>
         </div>

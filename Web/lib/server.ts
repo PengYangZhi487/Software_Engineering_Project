@@ -106,3 +106,52 @@ export async function loadDocumentCount(projectId = 1): Promise<number> {
     return 1; // mock 状态：P0 里的示例文档
   }
 }
+
+/* ---------- P4：质量扫描 ---------- */
+
+export type QualityKind = "ambiguous" | "conflict" | "missing_acceptance";
+
+export interface QualityIssue {
+  issue_id: string;
+  kind: QualityKind;
+  severity: string;
+  title: string;
+  detail: string;
+  req_ids: string[];
+  words: string[];
+}
+
+export interface QualityFeed {
+  items: QualityIssue[];
+  total: number;
+  byKind: Record<string, number>;
+  source: DataSource;
+  error: string | null;
+}
+
+interface ApiQualitySummary {
+  items: QualityIssue[];
+  total: number;
+  by_kind: Record<string, number>;
+}
+
+export async function loadQuality(projectId = 1): Promise<QualityFeed> {
+  try {
+    const data = await getJson<ApiQualitySummary>(`/api/projects/${projectId}/quality/issues`);
+    return {
+      items: data.items,
+      total: data.total,
+      byKind: data.by_kind ?? {},
+      source: "api",
+      error: null,
+    };
+  } catch (err) {
+    return {
+      items: [],
+      total: 0,
+      byKind: {},
+      source: "mock",
+      error: err instanceof Error ? err.message : "无法连接后端",
+    };
+  }
+}

@@ -85,3 +85,21 @@ class ExtractResult(BaseModel):
 
 class RequirementStatusUpdate(BaseModel):
     status: str = Field(description="未审核 / 已确认 / 已驳回")
+
+
+# ---------- P4：质量 ----------
+
+class QualityIssue(BaseModel):
+    issue_id: str
+    kind: str = Field(description="ambiguous / conflict / missing_acceptance")
+    severity: str = Field(description="warn / danger")
+    title: str
+    detail: str
+    req_ids: list[str] = Field(default_factory=list)
+    words: list[str] = Field(default_factory=list)
+
+
+class QualitySummary(BaseModel):
+    items: list[QualityIssue]
+    total: int
+    by_kind: dict[str, int] = Field(default_factory=dict)

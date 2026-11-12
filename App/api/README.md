@@ -34,6 +34,7 @@ cd C:\Users\Pyz18\Desktop\Project\Software_Engineering_Project
 | **POST** | `/api/projects/{project_id}/requirements/extract` | **调用 LLM 从文档抽取需求**（`?doc_id=`、`?replace=`） |
 | GET | `/api/projects/{project_id}/requirements` | 需求列表（`?status=未审核`） |
 | **PATCH** | `/api/requirements/{req_id}` | **确认 / 驳回 / 撤回**（body：`{"status": "已确认"}`） |
+| **GET** | `/api/projects/{project_id}/quality/issues` | **质量扫描**（模糊 / 冲突 / 缺验收） |
 
 ### 上传
 
@@ -73,6 +74,23 @@ curl.exe -X PATCH http://127.0.0.1:8000/api/requirements/CR-001 `
 
 `status` 只接受 `未审核` / `已确认` / `已驳回`，其它值返回 422。
 
+### 质量扫描（P4）
+
+```powershell
+curl.exe "http://127.0.0.1:8000/api/projects/1/quality/issues"
+```
+
+扫描是**确定性**的（同一份数据每次结果一致、不调 LLM、不改数据），因此直接 GET 即可。当前规则：
+
+| 规则 | 判定方式 | 样例 |
+|---|---|---|
+| 模糊表达 | 词表命中（快速/及时/稳定…） | CR-015「快速、明显」 |
+| 缺验收条件 | acceptance 为空 | — |
+| 数值口径冲突 | 同主题取最小数字，跨需求不一致 | 6 门 vs 8 门；50 人 vs 100 人；2 周 vs 4 周 |
+| 相反表述冲突 | 同主题同时出现「不可/不得」与「可/允许」 | 成绩不可改 vs 7 天内可改 |
+
+实测数据集：`total=10`（模糊 6 + 冲突 4）。语义层面的复杂冲突仍由人判断，见 P4.1。
+
 ## 设计约定
 
 1. **AI 提候选，人做决策**：抽取结果一律以 `未审核` 入库，不会自动确认。
@@ -100,8 +118,8 @@ curl.exe -X PATCH http://127.0.0.1:8000/api/requirements/CR-001 `
 
 9 条：段落与样式、非法扩展名、路由注册、上传→回读、404/415/400、抽取→确认→驳回全流程（用假 LLM，不耗额度）、空项目抽取报 400。
 
-## 下一步（P4）
+## 下一步（P5）
 
-- `POST /api/projects/{id}/quality/scan`：模糊词 + 缺验收条件 + 已知冲突组
-- `GET /api/projects/{id}/quality/issues`
-- 前端 `/quality` 页把 6 条模糊需求做成可裁决队列
+- `POST /api/projects/{id}/cases/generate`：按已确认需求生成正常 / 异常 / 边界用例
+- `PATCH /api/cases/{id}`：审核状态
+- 前端 `/cases` 页做候选用例审核

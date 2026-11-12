@@ -38,6 +38,7 @@ from App.api.schemas import RequirementStatusUpdate  # noqa: E402
 from App.dao.db import get_connection, init_db  # noqa: E402
 from App.services import llm_service  # noqa: E402
 from App.services.doc_service import parse_document  # noqa: E402
+from App.services.quality_scan import scan_requirements  # noqa: E402
 
 DOCX = ROOT / "test_file" / "datasets" / "course_selection_v1.docx"
 PROJECT_ID: int = 0
@@ -91,6 +92,10 @@ class ApiTests(unittest.TestCase):
         self.assertIn("/api/projects", paths)
         self.assertIn("/api/projects/{project_id}/documents", paths)
         self.assertIn("/api/documents/{doc_id}/paragraphs", paths)
+        self.assertIn("/api/projects/{project_id}/requirements", paths)
+        self.assertIn("/api/projects/{project_id}/requirements/extract", paths)
+        self.assertIn("/api/requirements/{req_id}", paths)
+        self.assertIn("/api/projects/{project_id}/quality/issues", paths)
 
     def test_upload_then_read(self) -> None:
         data = DOCX.read_bytes()
@@ -201,6 +206,34 @@ class RequirementFlowTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx:
             extract_requirements(empty_project, None, True)
         self.assertEqual(ctx.exception.status_code, 400)
+
+
+class QualityScanTests(unittest.TestCase):
+    """规则引擎是纯函数，直接喂数据断言，不依赖数据库。"""
+
+    def test_scan_detects_expected_kinds(self) -> None:
+        rows = [
+            {"req_id": "R1", "title": "选课门数", "description": "每学期最多选 6 门课程。", "acceptance": ["满 6 门拒绝"]},
+            {"req_id": "R2", "title": "允许选 8 门", "description": "允许学生每学期选 8 门课程。", "acceptance": []},
+            {"req_id": "R3", "title": "成绩发布后不可改", "description": "成绩发布后不可修改。", "acceptance": ["拒绝修改"]},
+            {"req_id": "R4", "title": "成绩 7 天内可改", "description": "教师可在成绩发布后 7 天内修改成绩。", "acceptance": ["允许修改"]},
+            {"req_id": "R5", "title": "系统响应快速", "description": "查询时无明显等待。", "acceptance": ["响应可接受"]},
+        ]
+        issues = scan_requirements(rows)
+        kinds = {issue["kind"] for issue in issues}
+
+        self.assertIn("ambiguous", kinds)
+        self.assertIn("conflict", kinds)
+        self.assertIn("missing_acceptance", kinds)
+
+        titles = [issue["title"] for issue in issues if issue["kind"] == "conflict"]
+        self.assertTrue(any("门数" in t for t in titles), titles)
+        self.assertTrue(any("成绩" in t for t in titles), titles)
+
+        # 同一份数据重复扫描，结果必须一致（可复算）
+        again = scan_requirements(rows)
+        self.assertEqual([i["issue_id"] for i in issues], [i["issue_id"] for i in again])
+        self.assertEqual([i["title"] for i in issues], [i["title"] for i in again])
 
 
 if __name__ == "__main__":
