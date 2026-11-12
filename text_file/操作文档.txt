@@ -7,3 +7,6 @@ git push
 
 显示文件夹结构
 tree /F /A > structure.txt
+
+运行启动后端
+.\venv\Scripts\python.exe -m uvicorn App.api.main:app --reload --port 8000
