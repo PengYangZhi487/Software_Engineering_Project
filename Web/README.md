@@ -1,6 +1,6 @@
-# RATGP Web · P2（前端骨架 + 文档工作台）
+# RATGP Web · P3（文档 + 需求闭环）
 
-P0 是「一页静态设计稿」，P1 把它变成真的 Next.js 应用，P2 把**文档工作台接上了 FastAPI**：上传 → 解析 → 入库 → 三栏展示，全是真数据。
+P0 是「一页静态设计稿」，P1 把它变成真的 Next.js 应用，P2 把文档工作台接上 FastAPI，P3 把**需求抽取与人工确认**接通：抽取结果进库、逐条确认/驳回、概览与侧栏数字全部来自真实数据库。
 
 ## 运行（两个终端）
 
@@ -23,10 +23,12 @@ Node ≥ 18；本项目在 Node 24 + Next 15.5 上验证。
 
 | 路由 | 内容 | 数据 |
 |---|---|---|
-| `/overview` | 指标条、主线 7 步、待办、最近活动、问题分布 | mock + 真实需求统计 |
+| `/overview` | 指标条、主线 7 步、待办、最近活动、问题分布 | **后端 API** |
 | `/document` | 上传（拖拽 / 版本号）、段落大纲、原文、候选需求联动 | **后端 API** |
-| `/requirements` | 筛选、搜索、批量选择、详情抽屉 | mock |
+| `/requirements` | 筛选、搜索、批量选择、抽屉、确认 / 驳回 | **后端 API** |
 | `/quality` `/cases` `/trace` `/changes` `/report` | 空状态，P4–P8 逐个接 | — |
+
+> 后端连不上时会自动退回 `lib/data.ts` 的示例数据，并在页面标题旁标「示例数据」，不会白屏。
 
 ## 文档工作台怎么接的
 
@@ -35,7 +37,14 @@ Node ≥ 18；本项目在 Node 24 + Next 15.5 上验证。
 3. **联动**：选中的段落高亮并在三栏间联动——点左侧大纲滚动到段落，点正文段落右侧出现该段的候选需求。
 4. **标题/时间**：标题取第一个 `Heading 1`，正文里不再重复；`upload_time` 是 UTC，前端统一按东八区显示。
 
-候选需求目前来自 `lib/data.ts` 的 mock（按 `para` 字段挂到段落上），真正的抽取要等 P3 的 `POST /api/requirements/extract`。
+候选需求来自真实需求表（按 `source_location.para_no` 挂到段落上），不再是本地 mock。
+
+## P3：需求抽取与确认
+
+- 后端 `POST /api/projects/1/requirements/extract` 会调用 DeepSeek 抽取，结果以 `未审核` 入库、编号由程序生成（`CR-001…`）。
+- 前端 `/requirements` 读 `GET /api/projects/1/requirements`，抽屉里的 **确认 / 驳回 / 撤回** 直接 `PATCH /api/requirements/{id}`，成功后 `router.refresh()`。
+- 顶部与侧栏的数字（需求总数、模糊数、待审核）都来自同一次服务端取数，和列表一致。
+- 抽取接口暂时没有 UI 按钮（`/document` 的「抽取需求」按钮还是灰的），先用 Swagger 或 curl 触发，见 `App/api/README.md`。
 
 ## 结构
 

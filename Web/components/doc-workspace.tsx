@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { ApiDocumentMeta, ApiParagraph } from "@/lib/api";
 import { formatApiTime } from "@/lib/api";
-import { requirements } from "@/lib/data";
+import type { Requirement } from "@/lib/types";
 import { Icon } from "./icon";
 import { UploadCard } from "./upload-card";
 
@@ -12,11 +12,13 @@ export function DocWorkspace({
   doc,
   paragraphs,
   apiError,
+  requirements,
   initialUploadOpen = false,
 }: {
   doc: ApiDocumentMeta | null;
   paragraphs: ApiParagraph[];
   apiError: string | null;
+  requirements: Requirement[];
   initialUploadOpen?: boolean;
 }) {
   const [uploadOpen, setUploadOpen] = useState(initialUploadOpen);
@@ -34,7 +36,7 @@ export function DocWorkspace({
   );
   const candidates = useMemo(
     () => (selected == null ? [] : requirements.filter((r) => r.para === selected)),
-    [selected],
+    [selected, requirements],
   );
 
   // 默认选中第一条需求对应的段落；没有就退到正文第一段
@@ -46,7 +48,7 @@ export function DocWorkspace({
       paragraphs.find((p) => !p.is_heading) ??
       paragraphs[0];
     setSelected(hit.para_no);
-  }, [paragraphs, selected]);
+  }, [paragraphs, selected, requirements]);
 
   // 选中段落滚动到视野中央
   useEffect(() => {

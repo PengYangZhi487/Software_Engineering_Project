@@ -1,6 +1,9 @@
-# RATGP API（P2）
+# RATGP API（P2–P3）
 
-FastAPI 后端，跑在 **8000** 端口，前端（`Web/`，Next.js）通过 HTTP 调它。P2 只做「文档上传 + 解析」这一条链路，其余接口后续按 P3–P8 补。
+FastAPI 后端，跑在 **8000** 端口，前端（`Web/`，Next.js）通过 HTTP 调它。
+
+- P2：文档上传 + 解析 + 段落
+- P3：需求抽取（LLM）+ 需求列表 + 人工确认 / 驳回
 
 ## 启动
 
@@ -9,10 +12,10 @@ cd C:\Users\Pyz18\Desktop\Project\Software_Engineering_Project
 .\venv\Scripts\python.exe -m uvicorn App.api.main:app --reload --port 8000
 ```
 
-- 文档：http://127.0.0.1:8000/docs （FastAPI 自带的 Swagger，可直接上传文件试）
+- 文档：http://127.0.0.1:8000/docs （Swagger，可直接试）
 - 健康检查：http://127.0.0.1:8000/api/health
 
-依赖已经在 `venv` 里（fastapi / uvicorn / python-multipart / python-docx）。换机器时：
+依赖已经在 `venv` 里。换机器时：
 
 ```powershell
 .\venv\Scripts\python.exe -m pip install -r App\requirements.txt
@@ -26,10 +29,13 @@ cd C:\Users\Pyz18\Desktop\Project\Software_Engineering_Project
 | GET | `/api/projects` | 项目列表（带需求条数） |
 | POST | `/api/projects/{project_id}/documents` | 上传并解析文档（multipart：`file` + `version`） |
 | GET | `/api/projects/{project_id}/documents` | 该项目下的文档列表 |
-| GET | `/api/documents/{doc_id}` | 文档元信息（段落数、字符数、原始文件路径） |
-| GET | `/api/documents/{doc_id}/paragraphs` | 段落列表（含 `style` 与 `is_heading`） |
+| GET | `/api/documents/{doc_id}` | 文档元信息 |
+| GET | `/api/documents/{doc_id}/paragraphs` | 段落列表（含 `style` / `is_heading`） |
+| **POST** | `/api/projects/{project_id}/requirements/extract` | **调用 LLM 从文档抽取需求**（`?doc_id=`、`?replace=`） |
+| GET | `/api/projects/{project_id}/requirements` | 需求列表（`?status=未审核`） |
+| **PATCH** | `/api/requirements/{req_id}` | **确认 / 驳回 / 撤回**（body：`{"status": "已确认"}`） |
 
-### 上传示例
+### 上传
 
 ```powershell
 # Windows PowerShell 5.1 用 curl.exe（Invoke-RestMethod -Form 要 PowerShell 7+）
@@ -38,53 +44,53 @@ curl.exe -X POST http://127.0.0.1:8000/api/projects/1/documents `
   -F "version=V1.0"
 ```
 
-或者直接打开 http://127.0.0.1:8000/docs ，在 `POST /api/projects/{project_id}/documents` 里点 **Try it out** 选文件上传。
+实测：52 段、1071 字符，段落 0 是 `Heading 1`、段落 2 是 `Heading 2`。
 
-实测（`test_file/datasets/course_selection_v1.docx`）：52 段、1071 字符、段落 0 为 `Heading 1`、段落 2 为 `Heading 2`（`CR-001 登录认证`）。
+### 抽取需求
 
-![Swagger](docs/swagger.png)
+```powershell
+# 会真正调用 DeepSeek，消耗少量额度；replace=true 会先清空该项目旧需求
+curl.exe -X POST "http://127.0.0.1:8000/api/projects/1/requirements/extract?replace=true"
+```
 
-返回：
+返回里 `created` 是入库条数，`ambiguous` 是命中模糊词的条数，`items` 是入库后的完整列表：
 
 ```json
 {
-  "document": {
-    "doc_id": 1, "project_id": 1, "filename": "course_selection_v1.docx",
-    "version": "V1.0", "upload_time": "2026-11-09 11:20:31",
-    "paragraphs": 52, "chars": 1071, "file_path": "App/data/uploads/<uuid>.docx"
-  },
-  "paragraphs": [
-    { "para_no": 0, "text": "校园选课系统需求说明书 V1.0", "style": "Heading 1", "is_heading": true }
-  ]
+  "created": 25, "skipped": 0, "ambiguous": 6, "replaced": true, "elapsed_ms": 18234,
+  "items": [{ "req_id": "CR-001", "title": "登录认证", "status": "未审核",
+              "is_ambiguous": false, "acceptance": ["..."],
+              "source_location": { "para_no": 3, "raw": "...", "ratio": 0.949 } }]
 }
 ```
 
-## 错误码约定
+### 确认 / 驳回
+
+```powershell
+curl.exe -X PATCH http://127.0.0.1:8000/api/requirements/CR-001 `
+  -H "Content-Type: application/json" -d "{\"status\":\"已确认\"}"
+```
+
+`status` 只接受 `未审核` / `已确认` / `已驳回`，其它值返回 422。
+
+## 设计约定
+
+1. **AI 提候选，人做决策**：抽取结果一律以 `未审核` 入库，不会自动确认。
+2. **编号由程序生成**：`CR-001…` 按顺序分配，不采信模型自己编的编号；`replace=false` 时从现有最大号续号。
+3. **失败即清理**：上传解析失败、入库失败、超限都会删掉落盘文件；抽取失败返回 502，不写库。
+4. **可回退**：驳回不物理删除，状态置为 `已驳回`，便于追溯（前端可按状态筛选）。
+
+## 错误码
 
 | 码 | 场景 |
 |---|---|
-| 400 | 空文件、解析失败、没有可解析文本、版本号过长 |
-| 404 | 项目 / 文档不存在 |
-| 413 | 超过大小上限（默认 10 MB） |
+| 400 | 空文件、解析失败、没有可解析文本、项目无文档却要抽取 |
+| 404 | 项目 / 文档 / 需求不存在 |
+| 413 | 超过 10 MB |
 | 415 | 扩展名不是 `.docx` / `.txt` |
-| 500 | 落盘或入库失败（同时会清理临时文件） |
-
-## 实现要点
-
-1. **先落盘再解析**：文件存到 `App/data/uploads/<uuid>.<ext>`，DB 的 `Document.file_path` 指向它 —— 保留原始文件，后面版本比对和「重新解析」都用得上。
-2. **失败即清理**：解析失败、入库失败、超限、空文件，都会 `unlink` 掉刚落盘的文件，不留垃圾。
-3. **复用服务层**：解析走 `App/services/doc_service.py`，不在这层重写 docx/txt 的逻辑；`para_index` 额外带 `style`，前端据此渲染大纲与标题。
-4. **测试可隔离**：`App/dao/db.py` 的 `DB_PATH` 支持 `RATGP_DB` 覆盖，测试用临时库，不碰 `App/data/ratgp.db`。
-
-## 环境变量
-
-| 变量 | 默认 | 说明 |
-|---|---|---|
-| `RATGP_DB` | `App/data/ratgp.db` | SQLite 路径 |
-| `RATGP_DATA_DIR` | `App/data` | 数据目录 |
-| `RATGP_UPLOAD_DIR` | `App/data/uploads` | 上传文件目录 |
-| `RATGP_MAX_UPLOAD_MB` | `10` | 单文件大小上限 |
-| `RATGP_CORS` | `localhost/127.0.0.1:3000,3100` | 逗号分隔的允许来源 |
+| 422 | 非法状态值 |
+| 502 | LLM 抽取失败（Key / 网络 / 配额） |
+| 500 | 落盘或入库失败 |
 
 ## 测试
 
@@ -92,15 +98,10 @@ curl.exe -X POST http://127.0.0.1:8000/api/projects/1/documents `
 .\venv\Scripts\python.exe -m unittest discover -s App\api\tests -v
 ```
 
-覆盖：段落数与样式、非法扩展名、路由注册、上传 → 元信息 → 段落回读、404/415/400 三类错误。
+9 条：段落与样式、非法扩展名、路由注册、上传→回读、404/415/400、抽取→确认→驳回全流程（用假 LLM，不耗额度）、空项目抽取报 400。
 
-## 下一步（P2 前端）
+## 下一步（P4）
 
-后端这条链路已经通了，前端 `Web/` 还差三块：
-
-1. `/document` 页面：上传区（拖拽 + 版本号）→ 调 `POST /api/projects/1/documents`；
-2. 左栏段落大纲、中间原文、右侧候选需求（候选需求要等 P3 的抽取接口，先静态占位）；
-3. 把 `App/services/llm_service.py` 包一层 `POST /api/requirements/extract`，文档与需求才会真正联动。
-
-在此之前，`Web/` 的运行不依赖这个服务（P1 用的是 mock）。
-
+- `POST /api/projects/{id}/quality/scan`：模糊词 + 缺验收条件 + 已知冲突组
+- `GET /api/projects/{id}/quality/issues`
+- 前端 `/quality` 页把 6 条模糊需求做成可裁决队列

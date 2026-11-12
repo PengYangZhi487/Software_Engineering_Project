@@ -657,3 +657,7 @@ a.nav-item { text-decoration: none; }
   font-family: var(--mono); font-size: 11px; color: var(--text-2); text-align: left;
   max-width: 100%; overflow-x: auto;
 }
+
+/* P3：状态色 + 页面标题里的小标签 */
+.st.danger { color: var(--danger); }
+.page-title > .chip { transform: translateY(-2px); }

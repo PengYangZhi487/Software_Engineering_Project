@@ -1,5 +1,5 @@
 export type Risk = "ambiguous" | "conflict";
-export type ReqStatus = "confirmed" | "unconfirmed";
+export type ReqStatus = "confirmed" | "unconfirmed" | "rejected";
 export type ReqType = "functional" | "non_functional";
 export type CaseType = "normal" | "abnormal" | "boundary";
 
@@ -27,3 +27,6 @@ export interface TestCase {
   /** 关联的需求编号 */
   reqs: string[];
 }
+
+/** 当前页面的数据来自后端还是本地 mock */
+export type DataSource = "api" | "mock";

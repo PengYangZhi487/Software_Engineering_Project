@@ -4,12 +4,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_MAIN, NAV_STEPS } from "@/lib/nav";
 
+export interface SidebarCounts {
+  documents: string;
+  requirements: string;
+  issues: string;
+  cases: string;
+  coverage: string;
+}
+
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-export function Sidebar() {
+export function Sidebar({ counts }: { counts: SidebarCounts }) {
   const pathname = usePathname();
+  const countOf = (key?: string) =>
+    key ? (counts as unknown as Record<string, string>)[key] : undefined;
 
   return (
     <aside className="sidebar">
@@ -25,11 +35,11 @@ export function Sidebar() {
         </div>
       </div>
 
-      <div className="proj" title="P1 阶段固定为示例项目，P2 接入项目切换">
+      <div className="proj" title="P3 阶段固定为示例项目，后续支持多项目切换">
         <div className="av">选</div>
         <div className="nm">
           <b>校园选课系统</b>
-          <span>V1.0 · 25 条需求</span>
+          <span>V1.0 · {counts.requirements} 条需求</span>
         </div>
         <svg className="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
           <path d="M6 9l6 6 6-6" />
@@ -46,23 +56,25 @@ export function Sidebar() {
           >
             <span className="ix">{item.num}</span>
             {item.label}
-            {item.count ? <span className="cnt">{item.count}</span> : null}
           </Link>
         ))}
 
         <div className="nav-label">主线</div>
-        {NAV_STEPS.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`nav-item${isActive(pathname, item.href) ? " active" : ""}`}
-          >
-            <span className="ix">{item.num}</span>
-            {item.label}
-            {item.warn ? <span className="sd" style={{ background: "var(--warn)" }} /> : null}
-            {item.count ? <span className="cnt">{item.count}</span> : null}
-          </Link>
-        ))}
+        {NAV_STEPS.map((item) => {
+          const count = countOf(item.countKey);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`nav-item${isActive(pathname, item.href) ? " active" : ""}`}
+            >
+              <span className="ix">{item.num}</span>
+              {item.label}
+              {item.warn ? <span className="sd" style={{ background: "var(--warn)" }} /> : null}
+              {count ? <span className="cnt">{count}</span> : null}
+            </Link>
+          );
+        })}
       </nav>
 
       <div className="side-foot">

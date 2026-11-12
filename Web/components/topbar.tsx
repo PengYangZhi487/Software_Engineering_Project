@@ -58,9 +58,6 @@ export function Topbar() {
         <span className="kbd">/</span>
       </form>
 
-      <span className="demo-chip" title="P1 使用 mock 数据：需求来自真实库，用例为示例">
-        示例数据
-      </span>
       <div className="tb-div" />
       <ThemeMenu />
       <div className="avatar">管</div>

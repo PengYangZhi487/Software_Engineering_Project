@@ -44,3 +44,44 @@ class HealthOut(BaseModel):
     db: str
     projects: int | None = None
     version: str
+
+
+# ---------- P3：需求 ----------
+
+class SourceLocation(BaseModel):
+    para_no: int | None = None
+    raw: str | None = None
+    ratio: float | None = None
+
+
+class RequirementOut(BaseModel):
+    req_id: str
+    project_id: int
+    title: str
+    description: str
+    req_type: str
+    status: str
+    acceptance: list[str] = Field(default_factory=list)
+    source_location: SourceLocation | None = None
+    is_ambiguous: bool = False
+
+
+class RequirementListOut(BaseModel):
+    items: list[RequirementOut]
+    total: int
+    confirmed: int
+    ambiguous: int
+
+
+class ExtractResult(BaseModel):
+    document: DocumentMeta
+    created: int
+    skipped: int
+    ambiguous: int
+    replaced: bool
+    elapsed_ms: int
+    items: list[RequirementOut]
+
+
+class RequirementStatusUpdate(BaseModel):
+    status: str = Field(description="未审核 / 已确认 / 已驳回")

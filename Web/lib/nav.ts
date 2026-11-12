@@ -1,28 +1,23 @@
-import { stats } from "./stats";
-
 export interface NavItem {
   href: string;
   num: string;
   label: string;
-  count?: string;
+  /** 对应 Sidebar 传入的 counts 键名 */
+  countKey?: string;
   warn?: boolean;
 }
 
-export const NAV_MAIN: NavItem[] = [
-  { href: "/overview", num: "01", label: "总览" },
-];
+export const NAV_MAIN: NavItem[] = [{ href: "/overview", num: "01", label: "总览" }];
 
 export const NAV_STEPS: NavItem[] = [
-  { href: "/document", num: "02", label: "文档", count: "1" },
-  { href: "/requirements", num: "03", label: "需求", count: String(stats.total) },
-  { href: "/quality", num: "04", label: "质量", count: String(stats.issues), warn: true },
-  { href: "/cases", num: "05", label: "用例", count: String(stats.cases) },
-  { href: "/trace", num: "06", label: "追踪", count: `${stats.coveragePct}%` },
+  { href: "/document", num: "02", label: "文档", countKey: "documents" },
+  { href: "/requirements", num: "03", label: "需求", countKey: "requirements" },
+  { href: "/quality", num: "04", label: "质量", countKey: "issues", warn: true },
+  { href: "/cases", num: "05", label: "用例", countKey: "cases" },
+  { href: "/trace", num: "06", label: "追踪", countKey: "coverage" },
   { href: "/changes", num: "07", label: "变更" },
   { href: "/report", num: "08", label: "报告" },
 ];
-
-export const NAV_ALL = [...NAV_MAIN, ...NAV_STEPS];
 
 export const TITLES: Record<string, string> = {
   "/overview": "总览",

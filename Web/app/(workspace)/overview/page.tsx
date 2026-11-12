@@ -1,28 +1,33 @@
 import Link from "next/link";
 import { Icon } from "@/components/icon";
-import { stats, byType } from "@/lib/stats";
+import { loadRequirements } from "@/lib/server";
 
 const ACTIVITY = [
   { t: "10:58", k: "a", x: <>上传 <b>course_selection_v1.docx</b> · V1.0</> },
   { t: "10:59", k: "", x: <>解析完成，<b>52 段</b>，保留段落序号</> },
-  { t: "11:00", k: "a", x: <>AI 抽取 <b>25 条</b>候选需求</> },
-  { t: "11:04", k: "g", x: <>确认 <b>14 条</b>，驳回 0 条</> },
-  { t: "11:06", k: "a", x: <>生成 <b>13 条</b>候选用例（正常 5 / 异常 5 / 边界 3）</> },
-  { t: "11:09", k: "g", x: <>建立 <b>15 条</b>需求 × 用例关联</> },
+  { t: "11:00", k: "a", x: <>AI 抽取候选需求，编号由程序生成（CR-001…）</> },
+  { t: "11:04", k: "g", x: <>人工逐条确认，进入「已确认」</> },
+  { t: "11:06", k: "", x: <>用例生成在 P5，覆盖率在 P6 接入</> },
 ];
 
-const STEPS = [
-  { href: "/document", n: "02", name: "文档", val: "1 份 · 52 段", tone: "done" },
-  { href: "/requirements", n: "03", name: "需求", val: "25 条 · 14 已确认", tone: "now" },
-  { href: "/quality", n: "04", name: "质量", val: "11 条待处理", tone: "warn" },
-  { href: "/cases", n: "05", name: "用例", val: "13 条", tone: "" },
-  { href: "/trace", n: "06", name: "追踪", val: "覆盖 60%", tone: "" },
-  { href: "/changes", n: "07", name: "变更", val: "0 组对比", tone: "" },
-  { href: "/report", n: "08", name: "报告", val: "未生成", tone: "" },
-];
+export default async function OverviewPage() {
+  const feed = await loadRequirements(1);
+  const { items, counts, source, error } = feed;
 
-export default function OverviewPage() {
-  const uncovered = stats.total - stats.covered;
+  const functional = items.filter((r) => r.type === "functional").length;
+  const nonFunctional = items.length - functional;
+  const confirmRate = counts.total ? Math.round((counts.confirmed / counts.total) * 100) : 0;
+  const issueTotal = Math.max(counts.ambiguous, 1);
+
+  const steps = [
+    { href: "/document", n: "02", name: "文档", val: "1 份 · 52 段", tone: "done" },
+    { href: "/requirements", n: "03", name: "需求", val: `${counts.total} 条 · ${counts.confirmed} 已确认`, tone: "now" },
+    { href: "/quality", n: "04", name: "质量", val: `${counts.ambiguous} 条模糊`, tone: counts.ambiguous ? "warn" : "" },
+    { href: "/cases", n: "05", name: "用例", val: "0 条（P5）", tone: "" },
+    { href: "/trace", n: "06", name: "追踪", val: "待接入（P6）", tone: "" },
+    { href: "/changes", n: "07", name: "变更", val: "0 组对比", tone: "" },
+    { href: "/report", n: "08", name: "报告", val: "未生成", tone: "" },
+  ];
 
   return (
     <section className="view active">
@@ -31,6 +36,11 @@ export default function OverviewPage() {
           <div className="eyebrow">PROJECT · 需求工程</div>
           <h1 className="page-title">
             校园选课系统 <span className="ver">V1.0</span>
+            {source === "mock" ? (
+              <span className="chip warn" title={error ?? "后端未连接，当前展示示例数据"}>
+                示例数据
+              </span>
+            ) : null}
           </h1>
           <div className="page-sub">从需求文档到追踪矩阵，一条主线走完。当前停在「需求审核」。</div>
         </div>
@@ -38,8 +48,8 @@ export default function OverviewPage() {
           <Link className="btn" href="/document">
             <Icon name="upload" />上传文档
           </Link>
-          <Link className="btn primary" href="/cases">
-            <Icon name="flask" />生成用例
+          <Link className="btn primary" href="/requirements">
+            <Icon name="flask" />去审核需求
           </Link>
           <button className="btn icon" type="button" title="更多操作">
             <Icon name="more" size={15} />
@@ -51,42 +61,35 @@ export default function OverviewPage() {
         <div className="metric">
           <div className="k">需求总数</div>
           <div className="v">
-            {stats.total}
+            {counts.total}
             <small>条</small>
           </div>
           <div className="d">
-            功能 {byType.functional} · 非功能 {byType.non_functional}
+            功能 {functional} · 非功能 {nonFunctional}
           </div>
         </div>
         <div className="metric">
           <div className="k">已确认</div>
           <div className="v">
-            {stats.confirmed}
-            <small>/ {stats.total}</small>
+            {counts.confirmed}
+            <small>/ {counts.total}</small>
           </div>
           <div className="d">
-            <b>{Math.round((stats.confirmed / stats.total) * 100)}%</b> 确认率 · 待审核 {stats.pending}
+            <b>{confirmRate}%</b> 确认率 · 待审核 {counts.pending}
           </div>
         </div>
         <div className="metric">
-          <div className="k">待处理问题</div>
+          <div className="k">模糊需求</div>
           <div className="v">
-            {stats.issues}
+            {counts.ambiguous}
             <small>条</small>
           </div>
-          <div className="d">
-            模糊 {stats.ambiguous} · 冲突 {stats.conflict}
-          </div>
+          <div className="d">命中模糊词，P4 统一裁决</div>
         </div>
         <div className="metric">
           <div className="k">用例覆盖</div>
-          <div className="v">
-            {stats.coveragePct}
-            <small>%</small>
-          </div>
-          <div className="d">
-            {stats.covered} / {stats.total} 条需求已关联
-          </div>
+          <div className="v">—</div>
+          <div className="d">用例生成在 P5，覆盖率在 P6</div>
         </div>
       </div>
 
@@ -97,7 +100,7 @@ export default function OverviewPage() {
         </div>
         <div className="card-b">
           <div className="steps">
-            {STEPS.map((s) => (
+            {steps.map((s) => (
               <Link
                 key={s.href}
                 href={s.href}
@@ -124,9 +127,24 @@ export default function OverviewPage() {
           </div>
           <div className="card-b">
             {[
-              { n: "11", title: "审核 11 条未确认需求", sub: "6 条含模糊表达，5 条相互冲突", href: "/requirements" },
-              { n: "5", title: "裁决 5 组需求冲突", sub: "CR-021～CR-025 与早期条款矛盾", href: "/quality" },
-              { n: String(uncovered), title: `补齐 ${uncovered} 条未覆盖需求`, sub: "优先给边界与异常场景补用例", href: "/trace" },
+              {
+                n: String(counts.pending),
+                title: `审核 ${counts.pending} 条未确认需求`,
+                sub: "逐条确认或驳回，编号已由程序生成",
+                href: "/requirements",
+              },
+              {
+                n: String(counts.ambiguous),
+                title: `裁决 ${counts.ambiguous} 条模糊需求`,
+                sub: "命中「快速 / 及时 / 稳定」等词，P4 统一处理",
+                href: "/quality",
+              },
+              {
+                n: String(counts.confirmed),
+                title: "给已确认需求生成用例",
+                sub: "正常 / 异常 / 边界三类，P5 接入",
+                href: "/cases",
+              },
               { n: "1", title: "生成质量报告", sub: "覆盖率与问题统计，可复算", href: "/report" },
             ].map((todo) => (
               <Link key={todo.title} href={todo.href} className="todo" style={{ textDecoration: "none" }}>
@@ -164,27 +182,32 @@ export default function OverviewPage() {
         <div className="card">
           <div className="card-h">
             <span className="t">问题分布</span>
-            <span className="m">{stats.issues} 条</span>
+            <span className="m">{counts.ambiguous + counts.rejected} 条</span>
           </div>
           <div className="card-b dist">
             <div className="dist-row">
               <span>模糊表达</span>
               <span className="bar">
-                <i style={{ width: `${(stats.ambiguous / stats.issues) * 100}%`, background: "var(--warn)" }} />
+                <i style={{ width: `${(counts.ambiguous / issueTotal) * 100}%`, background: "var(--warn)" }} />
               </span>
-              <span className="tnum">{stats.ambiguous}</span>
+              <span className="tnum">{counts.ambiguous}</span>
             </div>
             <div className="dist-row">
-              <span>需求冲突</span>
+              <span>已驳回</span>
               <span className="bar">
-                <i style={{ width: `${(stats.conflict / stats.issues) * 100}%`, background: "var(--danger)" }} />
+                <i
+                  style={{
+                    width: `${(counts.rejected / Math.max(counts.rejected + counts.ambiguous, 1)) * 100}%`,
+                    background: "var(--danger)",
+                  }}
+                />
               </span>
-              <span className="tnum">{stats.conflict}</span>
+              <span className="tnum">{counts.rejected}</span>
             </div>
             <div className="dist-row">
-              <span>缺验收条件</span>
+              <span>冲突检测</span>
               <span className="bar" />
-              <span className="tnum">0</span>
+              <span className="tnum">—</span>
             </div>
           </div>
         </div>

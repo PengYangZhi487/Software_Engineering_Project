@@ -175,10 +175,11 @@ def count_requirements(project_id: int) -> int:
 
 
 # ---------- 状态流转（FR-3.4） ----------
-ALLOWED_STATUS = {"未审核", "已确认"}
+# 已驳回 用于记录「人明确拒绝的 AI 候选」，保留行以便追溯，不物理删除。
+ALLOWED_STATUS = {"未审核", "已确认", "已驳回"}
 
 def update_status(req_id: str, new_status: str) -> bool:
-    """切换需求状态，只允许 未审核 <-> 已确认。返回是否更新成功。"""
+    """切换需求状态（未审核 / 已确认 / 已驳回）。返回是否更新成功。"""
     if new_status not in ALLOWED_STATUS:
         raise ValueError(f"非法状态: {new_status}")
     conn = get_connection()

@@ -127,3 +127,69 @@ def get_paragraphs(doc_id: int) -> list[Paragraph] | None:
         return _paragraphs_of(row) if row else None
     finally:
         conn.close()
+
+
+# ---------- P3：需求 ----------
+
+def get_document_source(doc_id: int) -> tuple[str, list[dict]] | None:
+    """取文档正文与结构化段落索引，供抽取与段落定位使用。"""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT content_text, para_index FROM Document WHERE doc_id = ?", (doc_id,)
+        ).fetchone()
+        if not row:
+            return None
+        para_index = json.loads(row["para_index"]) if row["para_index"] else []
+        return row["content_text"] or "", para_index
+    finally:
+        conn.close()
+
+
+def latest_document_id(project_id: int) -> int | None:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT doc_id FROM Document WHERE project_id = ? ORDER BY doc_id DESC LIMIT 1",
+            (project_id,),
+        ).fetchone()
+        return int(row["doc_id"]) if row else None
+    finally:
+        conn.close()
+
+
+def max_requirement_number(project_id: int) -> int:
+    """项目里已有需求的最大编号（CR-012 → 12），用于续号。"""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT req_id FROM Requirement WHERE project_id = ?", (project_id,)
+        ).fetchall()
+    finally:
+        conn.close()
+
+    best = 0
+    for r in rows:
+        digits = "".join(ch for ch in (r["req_id"] or "") if ch.isdigit())
+        if digits:
+            best = max(best, int(digits))
+    return best
+
+
+def get_requirement(req_id: str) -> dict | None:
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT * FROM Requirement WHERE req_id = ?", (req_id,)).fetchone()
+        if row is None:
+            return None
+        data = dict(row)
+    finally:
+        conn.close()
+
+    for key in ("acceptance", "source_location"):
+        if data.get(key):
+            try:
+                data[key] = json.loads(data[key])
+            except (json.JSONDecodeError, TypeError):
+                pass
+    return data
