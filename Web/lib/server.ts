@@ -209,3 +209,71 @@ export async function loadCases(projectId = 1): Promise<CaseFeed> {
     };
   }
 }
+
+/* ---------- P6：追踪矩阵 ---------- */
+
+export interface TraceSummary {
+  confirmed: number;
+  covered: number;
+  coverage_pct: number;
+  linked_any: number;
+  cases: number;
+  reviewed_cases: number;
+  uncovered: number;
+}
+
+export interface TraceRequirement {
+  req_id: string;
+  title: string;
+  status: string;
+  case_ids: number[];
+  reviewed: number;
+  covered: boolean;
+}
+
+export interface TraceCase {
+  tc_id: number;
+  title: string;
+  test_type: CaseType;
+  status: string;
+  req_id: string | null;
+}
+
+export interface TraceFeed {
+  summary: TraceSummary;
+  requirements: TraceRequirement[];
+  cases: TraceCase[];
+  source: DataSource;
+  error: string | null;
+}
+
+interface ApiTrace {
+  summary: TraceSummary;
+  requirements: TraceRequirement[];
+  cases: TraceCase[];
+}
+
+const EMPTY_SUMMARY: TraceSummary = {
+  confirmed: 0,
+  covered: 0,
+  coverage_pct: 0,
+  linked_any: 0,
+  cases: 0,
+  reviewed_cases: 0,
+  uncovered: 0,
+};
+
+export async function loadTrace(projectId = 1): Promise<TraceFeed> {
+  try {
+    const data = await getJson<ApiTrace>(`/api/projects/${projectId}/trace`);
+    return { ...data, source: "api", error: null };
+  } catch (err) {
+    return {
+      summary: EMPTY_SUMMARY,
+      requirements: [],
+      cases: [],
+      source: "mock",
+      error: err instanceof Error ? err.message : "无法连接后端",
+    };
+  }
+}

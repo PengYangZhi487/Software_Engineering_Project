@@ -308,3 +308,83 @@ def update_case_status(tc_id: int, status: str) -> bool:
         return cur.rowcount > 0
     finally:
         conn.close()
+
+
+# ---------- P6：追踪矩阵 ----------
+
+def trace_requirements(project_id: int) -> list[dict]:
+    """项目需求 + 每条需求关联的用例编号与其中已审核的条数。"""
+    conn = get_connection()
+    try:
+        reqs = [
+            dict(r)
+            for r in conn.execute(
+                "SELECT req_id, title, status FROM Requirement WHERE project_id = ? ORDER BY req_id",
+                (project_id,),
+            ).fetchall()
+        ]
+        links = conn.execute(
+            """
+            SELECT l.req_id, tc.tc_id, tc.status
+            FROM RequirementTestLink l
+            JOIN TestCase tc ON tc.tc_id = l.tc_id
+            JOIN Requirement r ON r.req_id = l.req_id
+            WHERE r.project_id = ?
+            """,
+            (project_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    by_req: dict[str, list[dict]] = {}
+    for row in links:
+        by_req.setdefault(row["req_id"], []).append(
+            {"tc_id": int(row["tc_id"]), "status": row["status"]}
+        )
+
+    for req in reqs:
+        linked = by_req.get(req["req_id"], [])
+        req["case_ids"] = [item["tc_id"] for item in linked]
+        req["reviewed"] = sum(1 for item in linked if item["status"] == "已审核")
+    return reqs
+
+
+def trace_cases(project_id: int) -> list[dict]:
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT tc.tc_id, tc.title, tc.test_type, tc.status, l.req_id
+            FROM TestCase tc
+            JOIN RequirementTestLink l ON l.tc_id = tc.tc_id
+            JOIN Requirement r ON r.req_id = l.req_id
+            WHERE r.project_id = ?
+            ORDER BY tc.tc_id
+            """,
+            (project_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def coverage_query(project_id: int) -> tuple[int, int]:
+    """纯 SQL 计算覆盖率分子分母，用于和页面数字交叉验证（G4）。"""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            """
+            SELECT
+              (SELECT COUNT(*) FROM Requirement
+                WHERE project_id = ? AND status = '已确认') AS confirmed,
+              (SELECT COUNT(DISTINCT r.req_id)
+                 FROM Requirement r
+                 JOIN RequirementTestLink l ON l.req_id = r.req_id
+                 JOIN TestCase tc ON tc.tc_id = l.tc_id
+                WHERE r.project_id = ? AND r.status = '已确认' AND tc.status = '已审核') AS covered
+            """,
+            (project_id, project_id),
+        ).fetchone()
+        return int(row["confirmed"]), int(row["covered"])
+    finally:
+        conn.close()

@@ -725,3 +725,6 @@ a.nav-item { text-decoration: none; }
 
 /* P5：禁用态按钮（审核/驳回已处理过的用例时） */
 .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* P6：矩阵里「已关联但未审核」的格子 */
+.mk.pending { background: color-mix(in srgb, var(--warn) 30%, transparent); border: 1px solid var(--warn); }

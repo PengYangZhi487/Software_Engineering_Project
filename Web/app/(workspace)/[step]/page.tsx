@@ -14,16 +14,6 @@ interface StepCopy {
 }
 
 const STEPS: Record<string, StepCopy> = {
-  trace: {
-    eyebrow: "STEP 06 · 追踪",
-    title: "追踪矩阵",
-    sub: "需求 × 测试用例。未覆盖的需求就是下一轮测试要补的洞。",
-    icon: "grid",
-    emptyTitle: "追踪矩阵在 P6 接入",
-    emptyBody:
-      "P6 会把需求与用例的多对多关联、覆盖率计算和未覆盖清单做进来；覆盖率必须能由 SQL 独立复算，页面只是它的展示。",
-    primary: { href: "/requirements", label: "回到需求库" },
-  },
   changes: {
     eyebrow: "STEP 07 · 变更",
     title: "版本比对与影响",

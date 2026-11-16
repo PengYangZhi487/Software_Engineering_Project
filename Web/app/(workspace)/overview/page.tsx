@@ -1,18 +1,19 @@
 import Link from "next/link";
 import { Icon } from "@/components/icon";
-import { loadQuality, loadRequirements } from "@/lib/server";
+import { loadQuality, loadRequirements, loadTrace } from "@/lib/server";
 
 const ACTIVITY = [
   { t: "10:58", k: "a", x: <>上传 <b>course_selection_v1.docx</b> · V1.0</> },
   { t: "10:59", k: "", x: <>解析完成，<b>52 段</b>，保留段落序号</> },
   { t: "11:00", k: "a", x: <>AI 抽取候选需求，编号由程序生成（CR-001…）</> },
   { t: "11:04", k: "g", x: <>人工逐条确认，进入「已确认」</> },
-  { t: "11:06", k: "", x: <>用例生成在 P5，覆盖率在 P6 接入</> },
+  { t: "11:06", k: "", x: <>用例生成与覆盖率已接入，下一步做变更影响</> },
 ];
 
 export default async function OverviewPage() {
   const feed = await loadRequirements(1);
   const quality = await loadQuality(1);
+  const trace = await loadTrace(1);
   const { items, counts, source, error } = feed;
   const byKind = quality.byKind;
   const ambiguousIssues = byKind.ambiguous ?? 0;
@@ -28,8 +29,8 @@ export default async function OverviewPage() {
     { href: "/document", n: "02", name: "文档", val: "1 份 · 52 段", tone: "done" },
     { href: "/requirements", n: "03", name: "需求", val: `${counts.total} 条 · ${counts.confirmed} 已确认`, tone: "now" },
     { href: "/quality", n: "04", name: "质量", val: `${quality.total} 条问题`, tone: quality.total ? "warn" : "" },
-    { href: "/cases", n: "05", name: "用例", val: "0 条（P5）", tone: "" },
-    { href: "/trace", n: "06", name: "追踪", val: "待接入（P6）", tone: "" },
+    { href: "/cases", n: "05", name: "用例", val: `${trace.summary.cases} 条`, tone: "" },
+    { href: "/trace", n: "06", name: "追踪", val: `${trace.summary.coverage_pct}% 覆盖`, tone: "" },
     { href: "/changes", n: "07", name: "变更", val: "0 组对比", tone: "" },
     { href: "/report", n: "08", name: "报告", val: "未生成", tone: "" },
   ];
@@ -95,8 +96,13 @@ export default async function OverviewPage() {
         </div>
         <div className="metric">
           <div className="k">用例覆盖</div>
-          <div className="v">—</div>
-          <div className="d">用例生成在 P5，覆盖率在 P6</div>
+          <div className="v">
+            {trace.summary.coverage_pct}
+            <small>%</small>
+          </div>
+          <div className="d">
+            {trace.summary.covered} / {trace.summary.confirmed} 条已确认需求被已审核用例覆盖
+          </div>
         </div>
       </div>
 

@@ -35,6 +35,7 @@ from App.api.routers.cases import (  # noqa: E402
     update_case,
 )
 from App.api.routers.documents import upload_document  # noqa: E402
+from App.api.routers.trace import get_coverage, get_trace  # noqa: E402
 from App.api.routers.requirements import (  # noqa: E402
     extract_requirements,
     list_requirements,
@@ -109,6 +110,8 @@ class ApiTests(unittest.TestCase):
         self.assertIn("/api/projects/{project_id}/cases", paths)
         self.assertIn("/api/projects/{project_id}/cases/generate", paths)
         self.assertIn("/api/cases/{tc_id}", paths)
+        self.assertIn("/api/projects/{project_id}/trace", paths)
+        self.assertIn("/api/projects/{project_id}/trace/coverage", paths)
 
     def test_upload_then_read(self) -> None:
         data = DOCX.read_bytes()
@@ -350,6 +353,62 @@ class CaseFlowTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx:
             api_generate_cases(PROJECT_ID, CaseGenerateRequest())
         self.assertEqual(ctx.exception.status_code, 400)
+
+
+class TraceTests(unittest.TestCase):
+    """矩阵 + 覆盖率：口径固定为「已确认需求 × 已审核用例」。"""
+
+    def setUp(self) -> None:
+        conn = get_connection()
+        try:
+            conn.execute("UPDATE Requirement SET status = '未审核' WHERE project_id = ?", (PROJECT_ID,))
+            conn.execute(
+                "INSERT OR IGNORE INTO Requirement (req_id, project_id, title, description, acceptance, req_type, status, is_ambiguous) "
+                "VALUES ('CR-901', ?, '课程容量', '达到 50 人后拒绝', '[]', 'functional', '已确认', 0)",
+                (PROJECT_ID,),
+            )
+            conn.execute("UPDATE Requirement SET status = '已确认' WHERE req_id = 'CR-901'")
+            conn.execute("DELETE FROM RequirementTestLink")
+            conn.execute("DELETE FROM TestCase")
+            cur = conn.execute(
+                "INSERT INTO TestCase (req_id, title, steps, expected_result, test_type, status) "
+                "VALUES ('CR-901', '容量边界', '[\"提交选课\"]', '拒绝', 'boundary', '已审核')"
+            )
+            conn.execute(
+                "INSERT INTO RequirementTestLink (req_id, tc_id, link_source) VALUES ('CR-901', ?, 'AI')",
+                (cur.lastrowid,),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def test_matrix_reflects_confirmed_and_reviewed(self) -> None:
+        trace = get_trace(PROJECT_ID)
+        self.assertEqual(trace.summary.confirmed, 1)
+        self.assertEqual(trace.summary.covered, 1)
+        self.assertEqual(trace.summary.coverage_pct, 100)
+
+        row = next(r for r in trace.requirements if r.req_id == "CR-901")
+        self.assertTrue(row.covered)
+        self.assertEqual(len(row.case_ids), 1)
+
+        cov = get_coverage(PROJECT_ID)
+        self.assertTrue(cov.consistent, "矩阵口径与纯 SQL 复算必须一致")
+        self.assertEqual(cov.covered, cov.sql_covered)
+        self.assertEqual(cov.coverage_pct, 100)
+
+    def test_rejecting_case_drops_coverage(self) -> None:
+        trace = get_trace(PROJECT_ID)
+        tc_id = trace.cases[0].tc_id
+
+        update_case(tc_id, CaseStatusUpdate(status="已驳回"))
+        cov = get_coverage(PROJECT_ID)
+        self.assertEqual(cov.covered, 0)
+        self.assertEqual(cov.coverage_pct, 0)
+        self.assertTrue(cov.consistent)
+
+        update_case(tc_id, CaseStatusUpdate(status="已审核"))
+        self.assertEqual(get_coverage(PROJECT_ID).coverage_pct, 100)
 
 
 if __name__ == "__main__":

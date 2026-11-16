@@ -141,3 +141,46 @@ class CaseGenerateResult(BaseModel):
 
 class CaseStatusUpdate(BaseModel):
     status: str = Field(description="已生成 / 已审核 / 已驳回")
+
+
+# ---------- P6：追踪 ----------
+
+class TraceRequirement(BaseModel):
+    req_id: str
+    title: str
+    status: str
+    case_ids: list[int] = Field(default_factory=list)
+    reviewed: int = 0
+    covered: bool = False
+
+
+class TraceCase(BaseModel):
+    tc_id: int
+    title: str
+    test_type: str
+    status: str
+    req_id: str | None = None
+
+
+class TraceSummary(BaseModel):
+    confirmed: int = Field(description="分母：已确认需求数")
+    covered: int = Field(description="分子：至少关联一条已审核用例的已确认需求数")
+    coverage_pct: int
+    linked_any: int = Field(0, description="至少关联一条用例（不论状态）的已确认需求数")
+    cases: int = 0
+    reviewed_cases: int = 0
+    uncovered: int = 0
+
+
+class TraceOut(BaseModel):
+    summary: TraceSummary
+    requirements: list[TraceRequirement]
+    cases: list[TraceCase]
+
+
+class CoverageOut(BaseModel):
+    confirmed: int
+    covered: int
+    coverage_pct: int
+    sql_covered: int
+    consistent: bool
