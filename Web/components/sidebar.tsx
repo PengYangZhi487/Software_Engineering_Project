@@ -10,6 +10,7 @@ export interface SidebarCounts {
   issues: string;
   cases: string;
   coverage: string;
+  changes: string;
 }
 
 function isActive(pathname: string, href: string) {

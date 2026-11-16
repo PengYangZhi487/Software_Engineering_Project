@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from App.api import __version__
 from App.api.config import CORS_ORIGINS
-from App.api.routers import cases, documents, health, projects, quality, requirements, trace
+from App.api.routers import cases, diff, documents, health, projects, quality, requirements, trace
 from App.dao.db import init_db
 
 logging.basicConfig(
@@ -47,6 +47,7 @@ app.include_router(requirements.router)
 app.include_router(quality.router)
 app.include_router(cases.router)
 app.include_router(trace.router)
+app.include_router(diff.router)
 
 
 @app.get("/", include_in_schema=False)

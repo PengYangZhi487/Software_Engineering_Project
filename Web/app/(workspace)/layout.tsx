@@ -1,13 +1,20 @@
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
-import { loadDocumentCount, loadQuality, loadRequirements, loadTrace } from "@/lib/server";
+import {
+  loadDiff,
+  loadDocumentCount,
+  loadQuality,
+  loadRequirements,
+  loadTrace,
+} from "@/lib/server";
 
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
-  const [feed, documents, quality, trace] = await Promise.all([
+  const [feed, documents, quality, trace, diff] = await Promise.all([
     loadRequirements(1),
     loadDocumentCount(1),
     loadQuality(1),
     loadTrace(1),
+    loadDiff(1),
   ]);
 
   const counts = {
@@ -16,6 +23,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     issues: String(quality.total),
     cases: String(trace.summary.cases),
     coverage: trace.summary.confirmed ? `${trace.summary.coverage_pct}%` : "—",
+    changes: diff.available ? String(diff.data?.summary.changed ?? 0) : "—",
   };
 
   return (

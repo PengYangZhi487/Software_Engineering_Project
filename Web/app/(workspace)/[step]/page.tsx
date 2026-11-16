@@ -14,16 +14,6 @@ interface StepCopy {
 }
 
 const STEPS: Record<string, StepCopy> = {
-  changes: {
-    eyebrow: "STEP 07 · 变更",
-    title: "版本比对与影响",
-    sub: "两版文档按需求条目对齐，差异落到条目级，再查受影响的用例。",
-    icon: "diff",
-    emptyTitle: "还没有第二个版本文档",
-    emptyBody:
-      "把容量从 50 改成 60、把退课窗口拉长到 4 周，都会让若干条需求与用例失效。P7 会上传 V1.1 并给出左右对照与影响清单。",
-    secondary: "P7 接入",
-  },
   report: {
     eyebrow: "STEP 08 · 报告",
     title: "质量报告",

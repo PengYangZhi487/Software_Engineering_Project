@@ -35,6 +35,7 @@ from App.api.routers.cases import (  # noqa: E402
     update_case,
 )
 from App.api.routers.documents import upload_document  # noqa: E402
+from App.api.routers.diff import document_diff  # noqa: E402
 from App.api.routers.trace import get_coverage, get_trace  # noqa: E402
 from App.api.routers.requirements import (  # noqa: E402
     extract_requirements,
@@ -49,6 +50,7 @@ from App.api.schemas import (  # noqa: E402
 from App.dao.db import get_connection, init_db  # noqa: E402
 from App.services import case_service, llm_service  # noqa: E402
 from App.services.doc_service import parse_document  # noqa: E402
+from App.services.diff_service import diff_paragraphs  # noqa: E402
 from App.services.quality_scan import scan_requirements  # noqa: E402
 
 DOCX = ROOT / "test_file" / "datasets" / "course_selection_v1.docx"
@@ -112,6 +114,7 @@ class ApiTests(unittest.TestCase):
         self.assertIn("/api/cases/{tc_id}", paths)
         self.assertIn("/api/projects/{project_id}/trace", paths)
         self.assertIn("/api/projects/{project_id}/trace/coverage", paths)
+        self.assertIn("/api/projects/{project_id}/document-diff", paths)
 
     def test_upload_then_read(self) -> None:
         data = DOCX.read_bytes()
@@ -409,6 +412,91 @@ class TraceTests(unittest.TestCase):
 
         update_case(tc_id, CaseStatusUpdate(status="已审核"))
         self.assertEqual(get_coverage(PROJECT_ID).coverage_pct, 100)
+
+
+class DiffTests(unittest.TestCase):
+    """两版文档比对 + 受影响用例。"""
+
+    def setUp(self) -> None:
+        conn = get_connection()
+        try:
+            conn.execute("DELETE FROM RequirementTestLink")
+            conn.execute("DELETE FROM TestCase")
+            conn.execute("DELETE FROM Requirement WHERE project_id = ?", (PROJECT_ID,))
+            conn.execute("DELETE FROM Document")
+
+            base_paras = [
+                {"para_no": 0, "raw": "校园选课系统需求说明书", "style": "Heading 1"},
+                {"para_no": 1, "raw": "课程容量 50 人，满员拒绝。", "style": "Normal"},
+                {"para_no": 2, "raw": "退课截止第 2 周。", "style": "Normal"},
+            ]
+            target_paras = [
+                {"para_no": 0, "raw": "校园选课系统需求说明书", "style": "Heading 1"},
+                {"para_no": 1, "raw": "课程容量 60 人，满员拒绝。", "style": "Normal"},
+                {"para_no": 2, "raw": "退课截止第 3 周。", "style": "Normal"},
+            ]
+
+            base_id = conn.execute(
+                "INSERT INTO Document (project_id, filename, version, content_text, para_index) VALUES (?,?,?,?,?)",
+                (PROJECT_ID, "v1.docx", "V1.0", "base", json.dumps(base_paras, ensure_ascii=False)),
+            ).lastrowid
+            conn.execute(
+                "INSERT INTO Document (project_id, filename, version, content_text, para_index) VALUES (?,?,?,?,?)",
+                (PROJECT_ID, "v2.docx", "V1.1", "target", json.dumps(target_paras, ensure_ascii=False)),
+            )
+
+            conn.execute(
+                """
+                INSERT INTO Requirement
+                    (req_id, project_id, doc_id, title, description, acceptance, req_type, status, source_location, is_ambiguous)
+                VALUES ('CR-950', ?, ?, '课程容量', '课程容量 50 人，满员拒绝。', '[]', 'functional', '已确认', ?, 0)
+                """,
+                (
+                    PROJECT_ID,
+                    base_id,
+                    json.dumps(
+                        {"para_no": 1, "raw": "课程容量 50 人，满员拒绝。", "ratio": 1.0},
+                        ensure_ascii=False,
+                    ),
+                ),
+            )
+            case_id = conn.execute(
+                "INSERT INTO TestCase (req_id, title, steps, expected_result, test_type, status) "
+                "VALUES ('CR-950', '容量边界', '[]', '拒绝', 'boundary', '已审核')"
+            ).lastrowid
+            conn.execute(
+                "INSERT INTO RequirementTestLink (req_id, tc_id, link_source) VALUES ('CR-950', ?, 'AI')",
+                (case_id,),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def test_unit_diff_kinds(self) -> None:
+        base = [{"para_no": 1, "raw": "A"}, {"para_no": 2, "raw": "B"}, {"para_no": 3, "raw": "C"}]
+        target = [{"para_no": 1, "raw": "A"}, {"para_no": 2, "raw": "B2"}]
+        kinds = [c["kind"] for c in diff_paragraphs(base, target)]
+        self.assertIn("changed", kinds)
+        self.assertIn("removed", kinds)
+
+        base2 = [{"para_no": 1, "raw": "A"}]
+        target2 = [{"para_no": 1, "raw": "A"}, {"para_no": 2, "raw": "新段落"}]
+        self.assertEqual([c["kind"] for c in diff_paragraphs(base2, target2)], ["added"])
+
+    def test_endpoint_and_impact(self) -> None:
+        out = document_diff(PROJECT_ID, None, None)
+
+        self.assertEqual(out.summary.changed, 2)
+        self.assertEqual(out.summary.affected_requirements, 1)
+        self.assertEqual(out.summary.affected_cases, 1)
+
+        with_req = [c for c in out.changes if c.req_ids]
+        self.assertEqual(len(with_req), 1)
+        change = with_req[0]
+        self.assertIn("CR-950", change.req_ids)
+        self.assertEqual(change.removed_numbers, ["50"])
+        self.assertEqual(change.added_numbers, ["60"])
+        self.assertEqual(change.cases[0].status, "已审核")
 
 
 if __name__ == "__main__":

@@ -74,9 +74,20 @@ def save_requirements(
     saved = skipped = ambiguous = 0
     try:
         if clear_first:
+            # 重新抽取会替换需求编号，旧需求下的用例与关联必须先清掉，否则外键会拦。
+            conn.execute(
+                "DELETE FROM RequirementTestLink WHERE req_id IN "
+                "(SELECT req_id FROM Requirement WHERE project_id = ?)",
+                (project_id,),
+            )
+            conn.execute(
+                "DELETE FROM TestCase WHERE req_id IN "
+                "(SELECT req_id FROM Requirement WHERE project_id = ?)",
+                (project_id,),
+            )
             conn.execute("DELETE FROM Requirement WHERE project_id = ?", (project_id,))
             conn.commit()
-            logger.info("clear_first=True，已清空 project_id=%s 的旧需求", project_id)
+            logger.info("clear_first=True，已清空 project_id=%s 的旧需求及其用例", project_id)
 
         sql = """
             INSERT INTO Requirement

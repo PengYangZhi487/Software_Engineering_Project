@@ -184,3 +184,41 @@ class CoverageOut(BaseModel):
     coverage_pct: int
     sql_covered: int
     consistent: bool
+
+
+# ---------- P7：版本比对 ----------
+
+class DiffCase(BaseModel):
+    tc_id: int
+    title: str
+    req_id: str | None = None
+    status: str
+    test_type: str
+
+
+class DiffChange(BaseModel):
+    change_id: str
+    kind: str = Field(description="changed / added / removed")
+    base_para: int | None = None
+    target_para: int | None = None
+    base_text: str = ""
+    target_text: str = ""
+    removed_numbers: list[str] = Field(default_factory=list)
+    added_numbers: list[str] = Field(default_factory=list)
+    req_ids: list[str] = Field(default_factory=list)
+    cases: list[DiffCase] = Field(default_factory=list)
+
+
+class DiffSummary(BaseModel):
+    added: int = 0
+    removed: int = 0
+    changed: int = 0
+    affected_requirements: int = 0
+    affected_cases: int = 0
+
+
+class DiffOut(BaseModel):
+    base: DocumentMeta
+    target: DocumentMeta
+    summary: DiffSummary
+    changes: list[DiffChange]

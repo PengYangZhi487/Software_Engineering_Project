@@ -277,3 +277,78 @@ export async function loadTrace(projectId = 1): Promise<TraceFeed> {
     };
   }
 }
+
+/* ---------- P7：版本比对 ---------- */
+
+export interface DiffCase {
+  tc_id: number;
+  title: string;
+  req_id: string | null;
+  status: string;
+  test_type: string;
+}
+
+export interface DiffChange {
+  change_id: string;
+  kind: "changed" | "added" | "removed";
+  base_para: number | null;
+  target_para: number | null;
+  base_text: string;
+  target_text: string;
+  removed_numbers: string[];
+  added_numbers: string[];
+  req_ids: string[];
+  cases: DiffCase[];
+}
+
+export interface DiffSummary {
+  added: number;
+  removed: number;
+  changed: number;
+  affected_requirements: number;
+  affected_cases: number;
+}
+
+export interface DiffData {
+  base: { doc_id: number; filename: string; version: string };
+  target: { doc_id: number; filename: string; version: string };
+  summary: DiffSummary;
+  changes: DiffChange[];
+}
+
+export interface DiffFeed {
+  available: boolean;
+  data: DiffData | null;
+  message: string | null;
+  source: DataSource;
+}
+
+export async function loadDiff(projectId = 1): Promise<DiffFeed> {
+  try {
+    const res = await fetch(`${API_BASE}/api/projects/${projectId}/document-diff`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (res.status === 400) {
+      const body = (await res.json().catch(() => null)) as { detail?: string } | null;
+      return {
+        available: false,
+        data: null,
+        message: body?.detail ?? "至少需要两个版本的文档",
+        source: "api",
+      };
+    }
+    if (!res.ok) throw new Error(`API ${res.status} ${res.statusText}`);
+
+    const data = (await res.json()) as DiffData;
+    return { available: true, data, message: null, source: "api" };
+  } catch (err) {
+    return {
+      available: false,
+      data: null,
+      message: err instanceof Error ? err.message : "无法连接后端",
+      source: "mock",
+    };
+  }
+}

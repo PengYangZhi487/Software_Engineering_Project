@@ -40,6 +40,7 @@ cd C:\Users\Pyz18\Desktop\Project\Software_Engineering_Project
 | **PATCH** | `/api/cases/{tc_id}` | **审核 / 驳回 / 撤回**（body：`{"status": "已审核"}`） |
 | **GET** | `/api/projects/{project_id}/trace` | **追踪矩阵**（需求 × 用例 + 汇总） |
 | **GET** | `/api/projects/{project_id}/trace/coverage` | **覆盖率纯 SQL 复算**（并与矩阵口径交叉校验） |
+| **GET** | `/api/projects/{project_id}/document-diff` | **两版文档比对 + 受影响用例**（`?base_doc_id=`、`?target_doc_id=`） |
 
 ### 上传
 
@@ -137,6 +138,21 @@ curl.exe "http://127.0.0.1:8000/api/projects/1/trace/coverage"
 
 `已生成未审核` 的用例计入矩阵（黄色格子），但**不计入分子**——避免把机器生成当成已覆盖。`/trace/coverage` 用一条 SQL 独立复算，并和矩阵口径交叉校验，返回 `consistent: true/false`，满足 G4「页面数字可独立复算」。
 
+### 版本比对与影响（P7）
+
+```powershell
+# 默认 target = 最新文档、base = 次新文档
+curl.exe "http://127.0.0.1:8000/api/projects/1/document-diff"
+```
+
+- 段落级精确比对（`difflib.SequenceMatcher`），输出 `changed / added / removed` 三类；
+- 变更段落按 `source_location.para_no` 映射到需求，再查这些需求下的用例；
+- 返回里区分 `removed_numbers` / `added_numbers`，前端直接标出「−50 +60」；
+- **关联影响 ≠ 实际影响**：接口只列出关联用例，是否需要改由人复核；
+- 少于两版文档时返回 400，前端给「上传新版本」的引导。
+
+> 早期需求没有 `doc_id`（直接灌库），比对时按「属于旧版本」处理；重新抽取过的需求会带 `doc_id`。
+
 ## 设计约定
 
 1. **AI 提候选，人做决策**：抽取结果一律以 `未审核` 入库，不会自动确认；用例同理，生成 ≠ 通过。
@@ -163,10 +179,10 @@ curl.exe "http://127.0.0.1:8000/api/projects/1/trace/coverage"
 .\venv\Scripts\python.exe -m unittest discover -s App\api\tests -v
 ```
 
-14 条：段落与样式、非法扩展名、路由注册、上传→回读、404/415/400、抽取→确认→驳回、质量规则、用例生成→审核→驳回、矩阵覆盖率与 SQL 复算一致性（全部用假 LLM，不耗额度）。
+16 条：段落与样式、非法扩展名、路由注册、上传→回读、404/415/400、抽取→确认→驳回、质量规则、用例生成→审核→驳回、矩阵覆盖率与 SQL 复算一致性、两版文档比对与受影响用例（全部用假 LLM，不耗额度）。
 
-## 下一步（P7）
+## 下一步（P8）
 
-- `POST /api/projects/{id}/documents/{doc_id}/diff`：两版文档按需求条目对齐，difflib 定位变更
-- 受影响用例清单（区分「关联影响」与「需人工确认」）
-- 前端 `/changes` 页做左右对照与影响列表
+- `GET /api/projects/{id}/report`：需求清单、问题列表、覆盖率、用例状态汇总
+- `GET /api/projects/{id}/report/export.csv`：导出与页面数字一致
+- 前端 `/report` 页做报告预览与下载

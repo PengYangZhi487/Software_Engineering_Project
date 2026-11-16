@@ -15,7 +15,7 @@ export const NAV_STEPS: NavItem[] = [
   { href: "/quality", num: "04", label: "质量", countKey: "issues", warn: true },
   { href: "/cases", num: "05", label: "用例", countKey: "cases" },
   { href: "/trace", num: "06", label: "追踪", countKey: "coverage" },
-  { href: "/changes", num: "07", label: "变更" },
+  { href: "/changes", num: "07", label: "变更", countKey: "changes" },
   { href: "/report", num: "08", label: "报告" },
 ];
 
