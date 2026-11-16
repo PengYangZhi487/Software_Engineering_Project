@@ -222,3 +222,36 @@ class DiffOut(BaseModel):
     target: DocumentMeta
     summary: DiffSummary
     changes: list[DiffChange]
+
+
+# ---------- P8：报告 ----------
+
+class ReportProject(BaseModel):
+    project_id: int
+    project_name: str
+    description: str | None = None
+
+
+class ReportCounts(BaseModel):
+    requirements: int = 0
+    confirmed: int = 0
+    rejected: int = 0
+    pending: int = 0
+    issues: int = 0
+    ambiguous: int = 0
+    conflict: int = 0
+    missing_acceptance: int = 0
+    cases: int = 0
+    case_generated: int = 0
+    case_reviewed: int = 0
+    case_rejected: int = 0
+    covered_requirements: int = 0
+    uncovered: int = 0
+    coverage_pct: int = 0
+
+
+class ReportOut(BaseModel):
+    project: ReportProject
+    documents: list[DocumentMeta]
+    counts: ReportCounts
+    generated_at: str

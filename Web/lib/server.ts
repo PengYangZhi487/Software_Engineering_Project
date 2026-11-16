@@ -323,8 +323,7 @@ export interface DiffFeed {
   source: DataSource;
 }
 
-export async function loadDiff(projectId = 1): Promise<DiffFeed> {
-  try {
+export async function loadDiff(projectId = 1): Promise<DiffFeed> {  try {
     const res = await fetch(`${API_BASE}/api/projects/${projectId}/document-diff`, {
       cache: "no-store",
       signal: AbortSignal.timeout(5000),
@@ -349,6 +348,52 @@ export async function loadDiff(projectId = 1): Promise<DiffFeed> {
       data: null,
       message: err instanceof Error ? err.message : "无法连接后端",
       source: "mock",
+    };
+  }
+}
+
+/* ---------- P8：质量报告 ---------- */
+
+export interface ReportCounts {
+  requirements: number;
+  confirmed: number;
+  rejected: number;
+  pending: number;
+  issues: number;
+  ambiguous: number;
+  conflict: number;
+  missing_acceptance: number;
+  cases: number;
+  case_generated: number;
+  case_reviewed: number;
+  case_rejected: number;
+  covered_requirements: number;
+  uncovered: number;
+  coverage_pct: number;
+}
+
+export interface ReportData {
+  project: { project_id: number; project_name: string; description: string | null };
+  documents: { doc_id: number; filename: string; version: string; paragraphs: number }[];
+  counts: ReportCounts;
+  generated_at: string;
+}
+
+export interface ReportFeed {
+  data: ReportData | null;
+  source: DataSource;
+  error: string | null;
+}
+
+export async function loadReport(projectId = 1): Promise<ReportFeed> {
+  try {
+    const data = await getJson<ReportData>(`/api/projects/${projectId}/report`);
+    return { data, source: "api", error: null };
+  } catch (err) {
+    return {
+      data: null,
+      source: "mock",
+      error: err instanceof Error ? err.message : "无法连接后端",
     };
   }
 }

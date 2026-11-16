@@ -36,6 +36,8 @@ from App.api.routers.cases import (  # noqa: E402
 )
 from App.api.routers.documents import upload_document  # noqa: E402
 from App.api.routers.diff import document_diff  # noqa: E402
+from App.api.routers.quality import list_issues  # noqa: E402
+from App.api.routers.report import export_report, get_report  # noqa: E402
 from App.api.routers.trace import get_coverage, get_trace  # noqa: E402
 from App.api.routers.requirements import (  # noqa: E402
     extract_requirements,
@@ -48,7 +50,7 @@ from App.api.schemas import (  # noqa: E402
     RequirementStatusUpdate,
 )
 from App.dao.db import get_connection, init_db  # noqa: E402
-from App.services import case_service, llm_service  # noqa: E402
+from App.services import case_service, llm_service, req_service  # noqa: E402
 from App.services.doc_service import parse_document  # noqa: E402
 from App.services.diff_service import diff_paragraphs  # noqa: E402
 from App.services.quality_scan import scan_requirements  # noqa: E402
@@ -115,6 +117,8 @@ class ApiTests(unittest.TestCase):
         self.assertIn("/api/projects/{project_id}/trace", paths)
         self.assertIn("/api/projects/{project_id}/trace/coverage", paths)
         self.assertIn("/api/projects/{project_id}/document-diff", paths)
+        self.assertIn("/api/projects/{project_id}/report", paths)
+        self.assertIn("/api/projects/{project_id}/report/export", paths)
 
     def test_upload_then_read(self) -> None:
         data = DOCX.read_bytes()
@@ -497,6 +501,39 @@ class DiffTests(unittest.TestCase):
         self.assertEqual(change.removed_numbers, ["50"])
         self.assertEqual(change.added_numbers, ["60"])
         self.assertEqual(change.cases[0].status, "已审核")
+
+
+class ReportTests(unittest.TestCase):
+    """报告数字必须与各模块口径一致，导出的 CSV 必须能复现这些数字。"""
+
+    def test_report_matches_modules(self) -> None:
+        report = get_report(PROJECT_ID)
+        trace = get_trace(PROJECT_ID)
+        quality = list_issues(PROJECT_ID)
+
+        self.assertEqual(report.counts.coverage_pct, trace.summary.coverage_pct)
+        self.assertEqual(report.counts.covered_requirements, trace.summary.covered)
+        self.assertEqual(report.counts.issues, quality.total)
+        self.assertEqual(
+            report.counts.requirements,
+            len(req_service.get_requirements(PROJECT_ID)),
+        )
+        self.assertEqual(report.counts.cases, len(repository.list_cases(PROJECT_ID)))
+
+    def test_csv_export(self) -> None:
+        report = get_report(PROJECT_ID)
+        response = export_report(PROJECT_ID, "csv")
+        body = response.body.decode("utf-8")
+
+        self.assertTrue(body.startswith("\ufeff"), "CSV 需要带 BOM，Excel 才不会乱码")
+        self.assertIn("需求清单", body)
+        self.assertIn("测试用例", body)
+        self.assertIn(f"# 覆盖率(%),{report.counts.coverage_pct}", body)
+        self.assertIn(f"# 需求总数,{report.counts.requirements}", body)
+
+        with self.assertRaises(HTTPException) as ctx:
+            export_report(PROJECT_ID, "xlsx")
+        self.assertEqual(ctx.exception.status_code, 400)
 
 
 if __name__ == "__main__":

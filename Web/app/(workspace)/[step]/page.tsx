@@ -13,18 +13,7 @@ interface StepCopy {
   secondary?: string;
 }
 
-const STEPS: Record<string, StepCopy> = {
-  report: {
-    eyebrow: "STEP 08 · 报告",
-    title: "质量报告",
-    sub: "每个数字都能从数据库独立复算 —— 报告的价值在于可核对。",
-    icon: "chart",
-    emptyTitle: "报告模块在 P8 接入",
-    emptyBody:
-      "需求清单、问题列表、追踪矩阵、覆盖率、用例审核状态，一次导出 CSV / Excel，导出值与页面一致。",
-    secondary: "P8 接入",
-  },
-};
+const STEPS: Record<string, StepCopy> = {};
 
 export default async function StepPage({ params }: { params: Promise<{ step: string }> }) {
   const { step } = await params;

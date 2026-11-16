@@ -41,6 +41,8 @@ cd C:\Users\Pyz18\Desktop\Project\Software_Engineering_Project
 | **GET** | `/api/projects/{project_id}/trace` | **追踪矩阵**（需求 × 用例 + 汇总） |
 | **GET** | `/api/projects/{project_id}/trace/coverage` | **覆盖率纯 SQL 复算**（并与矩阵口径交叉校验） |
 | **GET** | `/api/projects/{project_id}/document-diff` | **两版文档比对 + 受影响用例**（`?base_doc_id=`、`?target_doc_id=`） |
+| **GET** | `/api/projects/{project_id}/report` | **质量报告汇总**（需求 / 问题 / 用例 / 覆盖率） |
+| **GET** | `/api/projects/{project_id}/report/export` | **导出 CSV**（UTF-8 BOM，`?format=csv`） |
 
 ### 上传
 
@@ -153,6 +155,18 @@ curl.exe "http://127.0.0.1:8000/api/projects/1/document-diff"
 
 > 早期需求没有 `doc_id`（直接灌库），比对时按「属于旧版本」处理；重新抽取过的需求会带 `doc_id`。
 
+### 质量报告与导出（P8）
+
+```powershell
+curl.exe "http://127.0.0.1:8000/api/projects/1/report"
+curl.exe -o report.csv "http://127.0.0.1:8000/api/projects/1/report/export?format=csv"
+```
+
+- `/report` 返回项目信息、文档列表、需求/问题/用例/覆盖率汇总；
+- `/report/export` 返回一个 CSV（UTF-8 BOM），包含四段：**汇总 / 需求清单 / 质量问题 / 测试用例**；
+- 页面与 CSV 都由同一个 `_build()` 生成，覆盖率复用追踪模块口径 —— 导出数字和页面一致，这也是 G4 的要求；
+- 目前只支持 CSV，XLSX 留到 P8.1。
+
 ## 设计约定
 
 1. **AI 提候选，人做决策**：抽取结果一律以 `未审核` 入库，不会自动确认；用例同理，生成 ≠ 通过。
@@ -179,10 +193,12 @@ curl.exe "http://127.0.0.1:8000/api/projects/1/document-diff"
 .\venv\Scripts\python.exe -m unittest discover -s App\api\tests -v
 ```
 
-16 条：段落与样式、非法扩展名、路由注册、上传→回读、404/415/400、抽取→确认→驳回、质量规则、用例生成→审核→驳回、矩阵覆盖率与 SQL 复算一致性、两版文档比对与受影响用例（全部用假 LLM，不耗额度）。
+18 条：段落与样式、非法扩展名、路由注册、上传→回读、404/415/400、抽取→确认→驳回、质量规则、用例生成→审核→驳回、矩阵覆盖率与 SQL 复算一致性、两版文档比对与受影响用例、报告与 CSV 一致性（全部用假 LLM，不耗额度）。
 
-## 下一步（P8）
+## 下一步
 
-- `GET /api/projects/{id}/report`：需求清单、问题列表、覆盖率、用例状态汇总
-- `GET /api/projects/{id}/report/export.csv`：导出与页面数字一致
-- 前端 `/report` 页做报告预览与下载
+MVP 主线（P2–P8）已经闭环。后续可选：
+
+- P8.1：XLSX 多 sheet 导出、报告模板
+- P9：演示脚本、录屏、答辩材料；把 Streamlit 版归档
+- 二期：语义冲突检测、多项目/登录、真实测试执行

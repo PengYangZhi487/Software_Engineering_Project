@@ -45,7 +45,7 @@ def get_trace(project_id: int) -> TraceOut:
         linked_any=linked_any,
         cases=len(case_rows),
         reviewed_cases=sum(1 for c in case_rows if c["status"] == "已审核"),
-        uncovered=len(confirmed) - linked_any,
+        uncovered=len(confirmed) - len(covered_ids),
     )
 
     return TraceOut(
