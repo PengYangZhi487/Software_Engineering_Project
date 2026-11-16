@@ -81,8 +81,9 @@ Web/
 │  ├─ api.ts                  # 后端唯一入口（list/paragraphs/upload）
 │  ├─ data.ts                 # mock：25 条需求 + 13 条示例用例
 │  └─ stats.ts  nav.ts  quality.ts  types.ts
-├─ prototype/                 # P0 静态视觉稿（不参与构建）
 └─ docs/shots/                # 页面截图
+
+（P0 静态视觉稿已移到 ../docs/prototype/，不参与构建）
 ```
 
 ## 配置

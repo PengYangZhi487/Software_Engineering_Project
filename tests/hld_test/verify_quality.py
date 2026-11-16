@@ -1,4 +1,4 @@
-# test_file/hld_test/verify_quality.py
+# tests/hld_test/verify_quality.py
 import sys
 import logging
 from pathlib import Path
@@ -16,7 +16,7 @@ from App.services import (
     locate_requirement,
 )
 
-DATASET = PROJECT_ROOT / "test_file" / "datasets" / "course_selection_v1.docx"
+DATASET = PROJECT_ROOT / "tests" / "datasets" / "course_selection_v1.docx"
 
 # SRS 5.4 声明的"模糊需求 6 条"
 EXPECTED_AMBIGUOUS = {f"CR-{i:03d}" for i in range(15, 21)}

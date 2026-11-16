@@ -1,4 +1,4 @@
-# test_file/hld_test/rename_project.py
+# tests/hld_test/rename_project.py
 import sys
 from pathlib import Path
 

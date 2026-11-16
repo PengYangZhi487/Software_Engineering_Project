@@ -55,7 +55,7 @@ from App.services.doc_service import parse_document  # noqa: E402
 from App.services.diff_service import diff_paragraphs  # noqa: E402
 from App.services.quality_scan import scan_requirements  # noqa: E402
 
-DOCX = ROOT / "test_file" / "datasets" / "course_selection_v1.docx"
+DOCX = ROOT / "tests" / "datasets" / "course_selection_v1.docx"
 PROJECT_ID: int = 0
 
 

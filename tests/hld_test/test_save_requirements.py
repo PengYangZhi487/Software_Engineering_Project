@@ -1,4 +1,4 @@
-# test_file/hld_test/test_save_requirements.py
+# tests/hld_test/test_save_requirements.py
 import sys
 import logging
 from pathlib import Path
@@ -15,7 +15,7 @@ from App.services.req_service import (
     save_requirements, get_requirements, count_requirements, clear_project_requirements,
 )
 
-DATASET = PROJECT_ROOT / "test_file" / "datasets" / "course_selection_v1.docx"
+DATASET = PROJECT_ROOT / "tests" / "datasets" / "course_selection_v1.docx"
 TEST_PROJECT_NAME = "__hld_test_project__"
 
 

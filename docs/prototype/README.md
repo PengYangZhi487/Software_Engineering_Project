@@ -52,7 +52,7 @@
 
 ## 数据说明
 
-- **真实的**：25 条需求（CR-001～CR-025）、52 个文档段落、段落定位（`¶` 编号与相似度）、6 条模糊（CR-015～CR-020）、5 组冲突（CR-021～CR-025）——全部来自 `App/data/ratgp.db` 与 `test_file/datasets/course_selection_v1.docx`。
+- **真实的**：25 条需求（CR-001～CR-025）、52 个文档段落、段落定位（`¶` 编号与相似度）、6 条模糊（CR-015～CR-020）、5 组冲突（CR-021～CR-025）——全部来自 `App/data/ratgp.db` 与 `tests/datasets/course_selection_v1.docx`。
 - **示例的**：13 条用例、60% 覆盖率、最近活动时间线。因为 `case_service` / `track_service` 还没实现（M4–M7），这部分是目标态演示，页面上有「设计预览」标记，不要当成已有功能。
 
 ## 设计决策
@@ -72,7 +72,7 @@
 ## 文件
 
 ```
-Web/prototype/
+docs/prototype/
 ├─ preview.html      # 单文件设计稿（HTML + CSS + 原生 JS，无构建）
 ├─ tokens.json       # 三套主题的颜色 / 字号 / 圆角 / 间距 / 动效
 ├─ README.md

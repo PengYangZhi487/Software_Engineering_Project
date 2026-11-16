@@ -49,7 +49,7 @@ cd C:\Users\Pyz18\Desktop\Project\Software_Engineering_Project
 ```powershell
 # Windows PowerShell 5.1 用 curl.exe（Invoke-RestMethod -Form 要 PowerShell 7+）
 curl.exe -X POST http://127.0.0.1:8000/api/projects/1/documents `
-  -F "file=@test_file/datasets/course_selection_v1.docx" `
+  -F "file=@tests/datasets/course_selection_v1.docx" `
   -F "version=V1.0"
 ```
 

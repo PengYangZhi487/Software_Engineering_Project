@@ -1,10 +1,10 @@
-# test_file/hld_test/test_services.py
+# tests/hld_test/test_services.py
 import os
 import sys
 import logging
 from pathlib import Path
 
-# 项目根：test_file/hld_test/test_services.py 往上两级
+# 项目根：tests/hld_test/test_services.py 往上两级
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -23,8 +23,8 @@ except Exception as e:
     doc_service = None
 
 
-# 现成的样例文档（在 test_file/Feasibility/ 下，确实存在）
-MOCK_DOCX = PROJECT_ROOT / "test_file" / "datasets" / "course_selection_v1.docx"
+# 现成的样例文档（在 tests/Feasibility/ 下，确实存在）
+MOCK_DOCX = PROJECT_ROOT / "tests" / "datasets" / "course_selection_v1.docx"
 
 # 兜底文本：覆盖清晰 / 模糊 / 矛盾各一条，方便肉眼校验提取效果
 FALLBACK_TEXT = (
