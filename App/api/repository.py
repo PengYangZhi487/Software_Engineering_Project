@@ -193,3 +193,118 @@ def get_requirement(req_id: str) -> dict | None:
             except (json.JSONDecodeError, TypeError):
                 pass
     return data
+
+
+# ---------- P5：测试用例 ----------
+
+def _case_of(row: Any) -> dict:
+    data = dict(row)
+    for key in ("preconditions", "steps"):
+        raw = data.get(key)
+        if raw:
+            try:
+                parsed = json.loads(raw)
+                data[key] = parsed if isinstance(parsed, list) else [str(parsed)]
+            except (json.JSONDecodeError, TypeError):
+                data[key] = [str(raw)]
+        else:
+            data[key] = []
+    return data
+
+
+def list_cases(project_id: int) -> list[dict]:
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT tc.* FROM TestCase tc
+            JOIN Requirement r ON r.req_id = tc.req_id
+            WHERE r.project_id = ?
+            ORDER BY tc.tc_id
+            """,
+            (project_id,),
+        ).fetchall()
+        return [_case_of(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_case(tc_id: int) -> dict | None:
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT * FROM TestCase WHERE tc_id = ?", (tc_id,)).fetchone()
+        return _case_of(row) if row else None
+    finally:
+        conn.close()
+
+
+def insert_case(
+    *,
+    req_id: str,
+    title: str,
+    preconditions: list[str],
+    steps: list[str],
+    expected_result: str,
+    test_type: str,
+    status: str = "已生成",
+) -> dict:
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            """
+            INSERT INTO TestCase (req_id, title, preconditions, steps, expected_result, test_type, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                req_id,
+                title,
+                json.dumps(preconditions, ensure_ascii=False),
+                json.dumps(steps, ensure_ascii=False),
+                expected_result,
+                test_type,
+                status,
+            ),
+        )
+        tc_id = int(cur.lastrowid)
+        conn.execute(
+            "INSERT OR IGNORE INTO RequirementTestLink (req_id, tc_id, link_source) VALUES (?, ?, ?)",
+            (req_id, tc_id, "AI"),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM TestCase WHERE tc_id = ?", (tc_id,)).fetchone()
+        return _case_of(row)
+    finally:
+        conn.close()
+
+
+def delete_cases_for_requirements(req_ids: list[str]) -> int:
+    if not req_ids:
+        return 0
+    placeholders = ",".join("?" for _ in req_ids)
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            f"SELECT tc_id FROM TestCase WHERE req_id IN ({placeholders})", req_ids
+        ).fetchall()
+        tc_ids = [int(r["tc_id"]) for r in rows]
+        if tc_ids:
+            ph = ",".join("?" for _ in tc_ids)
+            conn.execute(f"DELETE FROM RequirementTestLink WHERE tc_id IN ({ph})", tc_ids)
+            conn.execute(f"DELETE FROM TestCase WHERE tc_id IN ({ph})", tc_ids)
+            conn.commit()
+        return len(tc_ids)
+    finally:
+        conn.close()
+
+
+def update_case_status(tc_id: int, status: str) -> bool:
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            "UPDATE TestCase SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE tc_id = ?",
+            (status, tc_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()

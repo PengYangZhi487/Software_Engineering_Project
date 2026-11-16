@@ -103,3 +103,41 @@ class QualitySummary(BaseModel):
     items: list[QualityIssue]
     total: int
     by_kind: dict[str, int] = Field(default_factory=dict)
+
+
+# ---------- P5：测试用例 ----------
+
+class TestCaseOut(BaseModel):
+    tc_id: int
+    req_id: str | None = None
+    title: str
+    preconditions: list[str] = Field(default_factory=list)
+    steps: list[str] = Field(default_factory=list)
+    expected_result: str
+    test_type: str
+    status: str
+
+
+class CaseListOut(BaseModel):
+    items: list[TestCaseOut]
+    total: int
+    by_status: dict[str, int] = Field(default_factory=dict)
+    by_type: dict[str, int] = Field(default_factory=dict)
+
+
+class CaseGenerateRequest(BaseModel):
+    req_ids: list[str] | None = Field(None, description="不传则用全部已确认需求")
+    replace: bool = Field(True, description="true=先清空这些需求的旧用例")
+
+
+class CaseGenerateResult(BaseModel):
+    created: int
+    skipped: int
+    by_type: dict[str, int] = Field(default_factory=dict)
+    elapsed_ms: int
+    req_ids: list[str] = Field(default_factory=list)
+    items: list[TestCaseOut]
+
+
+class CaseStatusUpdate(BaseModel):
+    status: str = Field(description="已生成 / 已审核 / 已驳回")

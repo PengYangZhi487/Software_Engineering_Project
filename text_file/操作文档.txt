@@ -10,3 +10,6 @@ tree /F /A > structure.txt
 
 运行启动后端
 .\venv\Scripts\python.exe -m uvicorn App.api.main:app --reload --port 8000
+
+cd C:\Users\Pyz18\Desktop\Project\Software_Engineering_Project\Web
+npm run dev

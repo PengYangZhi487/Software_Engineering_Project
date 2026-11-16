@@ -35,6 +35,9 @@ cd C:\Users\Pyz18\Desktop\Project\Software_Engineering_Project
 | GET | `/api/projects/{project_id}/requirements` | 需求列表（`?status=未审核`） |
 | **PATCH** | `/api/requirements/{req_id}` | **确认 / 驳回 / 撤回**（body：`{"status": "已确认"}`） |
 | **GET** | `/api/projects/{project_id}/quality/issues` | **质量扫描**（模糊 / 冲突 / 缺验收） |
+| **POST** | `/api/projects/{project_id}/cases/generate` | **按已确认需求生成用例**（body：`req_ids`、`replace`） |
+| GET | `/api/projects/{project_id}/cases` | 用例列表（按状态 / 类型统计） |
+| **PATCH** | `/api/cases/{tc_id}` | **审核 / 驳回 / 撤回**（body：`{"status": "已审核"}`） |
 
 ### 上传
 
@@ -91,12 +94,38 @@ curl.exe "http://127.0.0.1:8000/api/projects/1/quality/issues"
 
 实测数据集：`total=10`（模糊 6 + 冲突 4）。语义层面的复杂冲突仍由人判断，见 P4.1。
 
+### 用例生成与审核（P5）
+
+```powershell
+# 为全部已确认需求生成（会覆盖这些需求的旧用例）
+curl.exe -X POST http://127.0.0.1:8000/api/projects/1/cases/generate `
+  -H "Content-Type: application/json" `
+  -d "{\"replace\":true}"
+
+# 只给勾选的两条需求生成
+curl.exe -X POST http://127.0.0.1:8000/api/projects/1/cases/generate `
+  -H "Content-Type: application/json" `
+  -d "{\"req_ids\":[\"CR-006\",\"CR-008\"],\"replace\":true}"
+
+# 审核 / 驳回 / 撤回
+curl.exe -X PATCH http://127.0.0.1:8000/api/cases/1 `
+  -H "Content-Type: application/json" -d "{\"status\":\"已审核\"}"
+```
+
+约定：
+
+- 只接受 `已确认` 需求；不传 `req_ids` 就为全部已确认需求生成，传了就只做子集；
+- 模型只提候选，**编号与引用由程序校验**：引用了不存在需求的用例会被丢弃（写库时外键再兜一层，失败计入 `skipped`）；
+- 生成结果状态为 `已生成`，审核由人做；
+- `status` 只接受 `已生成` / `已审核` / `已驳回`。
+
 ## 设计约定
 
-1. **AI 提候选，人做决策**：抽取结果一律以 `未审核` 入库，不会自动确认。
+1. **AI 提候选，人做决策**：抽取结果一律以 `未审核` 入库，不会自动确认；用例同理，生成 ≠ 通过。
 2. **编号由程序生成**：`CR-001…` 按顺序分配，不采信模型自己编的编号；`replace=false` 时从现有最大号续号。
-3. **失败即清理**：上传解析失败、入库失败、超限都会删掉落盘文件；抽取失败返回 502，不写库。
+3. **失败即清理**：上传解析失败、入库失败、超限都会删掉落盘文件；抽取/生成失败返回 502，不写库。
 4. **可回退**：驳回不物理删除，状态置为 `已驳回`，便于追溯（前端可按状态筛选）。
+5. **关联留痕**：每生成一条用例就写一条 `RequirementTestLink`，P6 的追踪矩阵直接用它。
 
 ## 错误码
 
@@ -116,10 +145,10 @@ curl.exe "http://127.0.0.1:8000/api/projects/1/quality/issues"
 .\venv\Scripts\python.exe -m unittest discover -s App\api\tests -v
 ```
 
-9 条：段落与样式、非法扩展名、路由注册、上传→回读、404/415/400、抽取→确认→驳回全流程（用假 LLM，不耗额度）、空项目抽取报 400。
+12 条：段落与样式、非法扩展名、路由注册、上传→回读、404/415/400、抽取→确认→驳回、质量规则、用例生成→审核→驳回（全部用假 LLM，不耗额度）。
 
-## 下一步（P5）
+## 下一步（P6）
 
-- `POST /api/projects/{id}/cases/generate`：按已确认需求生成正常 / 异常 / 边界用例
-- `PATCH /api/cases/{id}`：审核状态
-- 前端 `/cases` 页做候选用例审核
+- `GET /api/projects/{id}/trace/matrix`：需求 × 用例矩阵
+- `GET /api/projects/{id}/trace/coverage`：覆盖率（可由 SQL 独立复算）
+- 前端 `/trace` 页渲染矩阵与未覆盖清单

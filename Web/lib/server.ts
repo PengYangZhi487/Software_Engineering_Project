@@ -155,3 +155,57 @@ export async function loadQuality(projectId = 1): Promise<QualityFeed> {
     };
   }
 }
+
+/* ---------- P5：测试用例 ---------- */
+
+export type CaseType = "normal" | "abnormal" | "boundary";
+
+export interface TestCaseItem {
+  tc_id: number;
+  req_id: string | null;
+  title: string;
+  preconditions: string[];
+  steps: string[];
+  expected_result: string;
+  test_type: CaseType;
+  status: string;
+}
+
+export interface CaseFeed {
+  items: TestCaseItem[];
+  total: number;
+  byStatus: Record<string, number>;
+  byType: Record<string, number>;
+  source: DataSource;
+  error: string | null;
+}
+
+interface ApiCaseList {
+  items: TestCaseItem[];
+  total: number;
+  by_status: Record<string, number>;
+  by_type: Record<string, number>;
+}
+
+export async function loadCases(projectId = 1): Promise<CaseFeed> {
+  try {
+    const data = await getJson<ApiCaseList>(`/api/projects/${projectId}/cases`);
+    return {
+      items: data.items,
+      total: data.total,
+      byStatus: data.by_status ?? {},
+      byType: data.by_type ?? {},
+      source: "api",
+      error: null,
+    };
+  } catch (err) {
+    return {
+      items: [],
+      total: 0,
+      byStatus: {},
+      byType: {},
+      source: "mock",
+      error: err instanceof Error ? err.message : "无法连接后端",
+    };
+  }
+}

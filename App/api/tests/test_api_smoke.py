@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -28,15 +29,24 @@ from starlette.datastructures import UploadFile  # noqa: E402
 
 from App.api import repository  # noqa: E402
 from App.api.main import app  # noqa: E402
+from App.api.routers.cases import (  # noqa: E402
+    generate_cases as api_generate_cases,
+    list_cases as api_list_cases,
+    update_case,
+)
 from App.api.routers.documents import upload_document  # noqa: E402
 from App.api.routers.requirements import (  # noqa: E402
     extract_requirements,
     list_requirements,
     update_requirement,
 )
-from App.api.schemas import RequirementStatusUpdate  # noqa: E402
+from App.api.schemas import (  # noqa: E402
+    CaseGenerateRequest,
+    CaseStatusUpdate,
+    RequirementStatusUpdate,
+)
 from App.dao.db import get_connection, init_db  # noqa: E402
-from App.services import llm_service  # noqa: E402
+from App.services import case_service, llm_service  # noqa: E402
 from App.services.doc_service import parse_document  # noqa: E402
 from App.services.quality_scan import scan_requirements  # noqa: E402
 
@@ -96,6 +106,9 @@ class ApiTests(unittest.TestCase):
         self.assertIn("/api/projects/{project_id}/requirements/extract", paths)
         self.assertIn("/api/requirements/{req_id}", paths)
         self.assertIn("/api/projects/{project_id}/quality/issues", paths)
+        self.assertIn("/api/projects/{project_id}/cases", paths)
+        self.assertIn("/api/projects/{project_id}/cases/generate", paths)
+        self.assertIn("/api/cases/{tc_id}", paths)
 
     def test_upload_then_read(self) -> None:
         data = DOCX.read_bytes()
@@ -234,6 +247,109 @@ class QualityScanTests(unittest.TestCase):
         again = scan_requirements(rows)
         self.assertEqual([i["issue_id"] for i in issues], [i["issue_id"] for i in again])
         self.assertEqual([i["title"] for i in issues], [i["title"] for i in again])
+
+
+class CaseFlowTests(unittest.TestCase):
+    """用例生成 → 审核 → 驳回，全程用假的 LLM 结果。"""
+
+    def setUp(self) -> None:
+        conn = get_connection()
+        try:
+            conn.execute("DELETE FROM RequirementTestLink")
+            conn.execute("DELETE FROM TestCase")
+            conn.execute("DELETE FROM Requirement WHERE req_id = 'CR-901'")
+            conn.execute(
+                """
+                INSERT INTO Requirement
+                    (req_id, project_id, title, description, acceptance, req_type, status, is_ambiguous)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "CR-901",
+                    PROJECT_ID,
+                    "课程容量",
+                    "课程默认容量 50 人，达到上限后拒绝新选课。",
+                    json.dumps(["已选 49 人时允许", "已选 50 人时拒绝"], ensure_ascii=False),
+                    "functional",
+                    "已确认",
+                    0,
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def test_generate_and_review(self) -> None:
+        from unittest.mock import patch
+
+        fake = case_service.GeneratedCaseList(
+            cases=[
+                case_service.GeneratedCase(
+                    req_id="CR-901",
+                    title="容量未满时选课成功",
+                    preconditions=["课程已选 49 人"],
+                    steps=["学生提交选课请求"],
+                    expected_result="选课成功，人数变为 50",
+                    test_type="normal",
+                ),
+                case_service.GeneratedCase(
+                    req_id="CR-901",
+                    title="第 51 人被拒绝",
+                    preconditions=["课程已选 50 人"],
+                    steps=["第 51 名学生提交选课"],
+                    expected_result="拒绝并提示课程已满",
+                    test_type="boundary",
+                ),
+                case_service.GeneratedCase(
+                    req_id="CR-999",
+                    title="引用了不存在的需求",
+                    preconditions=[],
+                    steps=["x"],
+                    expected_result="y",
+                    test_type="abnormal",
+                ),
+            ]
+        )
+
+        with patch.object(case_service, "generate_cases", return_value=fake):
+            result = api_generate_cases(PROJECT_ID, CaseGenerateRequest(replace=True))
+
+        # CR-999 会因外键约束写不进去，计入 skipped
+        self.assertEqual(result.created, 2)
+        self.assertEqual(result.skipped, 1)
+        self.assertEqual(result.by_type, {"normal": 1, "boundary": 1})
+        self.assertIn("CR-901", result.req_ids)
+
+        listing = api_list_cases(PROJECT_ID)
+        self.assertGreaterEqual(listing.total, 2)
+        self.assertEqual(listing.by_status.get("已生成"), 2)
+        case = listing.items[0]
+
+        reviewed = update_case(case.tc_id, CaseStatusUpdate(status="已审核"))
+        self.assertEqual(reviewed.status, "已审核")
+
+        rejected = update_case(case.tc_id, CaseStatusUpdate(status="已驳回"))
+        self.assertEqual(rejected.status, "已驳回")
+
+        with self.assertRaises(HTTPException) as missing:
+            update_case(999999, CaseStatusUpdate(status="已审核"))
+        self.assertEqual(missing.exception.status_code, 404)
+
+        with self.assertRaises(HTTPException) as illegal:
+            update_case(case.tc_id, CaseStatusUpdate(status="随便"))
+        self.assertEqual(illegal.exception.status_code, 422)
+
+    def test_generate_requires_confirmed(self) -> None:
+        conn = get_connection()
+        try:
+            conn.execute("UPDATE Requirement SET status = '未审核' WHERE project_id = ?", (PROJECT_ID,))
+            conn.commit()
+        finally:
+            conn.close()
+
+        with self.assertRaises(HTTPException) as ctx:
+            api_generate_cases(PROJECT_ID, CaseGenerateRequest())
+        self.assertEqual(ctx.exception.status_code, 400)
 
 
 if __name__ == "__main__":

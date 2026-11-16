@@ -14,16 +14,6 @@ interface StepCopy {
 }
 
 const STEPS: Record<string, StepCopy> = {
-  cases: {
-    eyebrow: "STEP 05 · 用例",
-    title: "测试用例",
-    sub: "正常 / 异常 / 边界三类，schema 校验通过后进入人工审核。",
-    icon: "flask",
-    emptyTitle: "用例工作台在 P5 接入",
-    emptyBody:
-      "P5 会补上 case_service：按已确认需求生成三类候选用例，LLM 只提候选，Pydantic 校验字段、程序校验引用的需求是否存在。",
-    primary: { href: "/trace", label: "看追踪矩阵" },
-  },
   trace: {
     eyebrow: "STEP 06 · 追踪",
     title: "追踪矩阵",
