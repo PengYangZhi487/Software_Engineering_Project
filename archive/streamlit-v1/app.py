@@ -3,12 +3,12 @@ import sys
 import hashlib
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import streamlit as st
 from App.dao.db import get_connection, init_db
-from App.ui_theme import inject_style, sidebar_footer
+from ui_theme import inject_style, sidebar_footer
 
 st.set_page_config(page_title="RATGP 平台", page_icon="🧩", layout="wide")
 inject_style()

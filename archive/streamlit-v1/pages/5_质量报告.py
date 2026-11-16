@@ -6,7 +6,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 import streamlit as st
 from App.services.req_service import get_requirements
-from App.ui_theme import inject_style, guard_login, sidebar_footer
+from ui_theme import inject_style, guard_login, sidebar_footer
 
 st.set_page_config(page_title="质量报告", layout="wide")
 inject_style()

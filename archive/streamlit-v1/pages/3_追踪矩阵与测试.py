@@ -5,7 +5,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import streamlit as st
-from App.ui_theme import inject_style, guard_login, sidebar_footer
+from ui_theme import inject_style, guard_login, sidebar_footer
 
 st.set_page_config(page_title="追踪矩阵与测试", layout="wide")
 inject_style()

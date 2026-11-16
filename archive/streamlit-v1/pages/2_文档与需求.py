@@ -11,7 +11,7 @@ from App.dao.db import get_connection
 from App.services.doc_service import parse_document
 from App.services.llm_service import extract_requirements
 from App.services.req_service import get_requirements, save_requirements, update_status
-from App.ui_theme import inject_style, guard_login, sidebar_footer
+from ui_theme import inject_style, guard_login, sidebar_footer
 
 st.set_page_config(page_title="文档与需求", layout="wide")
 inject_style()

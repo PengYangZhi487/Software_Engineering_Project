@@ -7,7 +7,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 import streamlit as st
 from App.dao.db import get_connection
-from App.ui_theme import inject_style, guard_login, sidebar_footer
+from ui_theme import inject_style, guard_login, sidebar_footer
 
 st.set_page_config(page_title="项目工作区", layout="wide")
 inject_style()

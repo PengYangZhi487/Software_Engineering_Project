@@ -1,4 +1,4 @@
-# tests/hld_test/make_dataset.py
+# tests/datasets/make_dataset.py
 import sys
 from pathlib import Path
 
@@ -53,6 +53,6 @@ def build_docx(out_path: Path):
 
 
 if __name__ == "__main__":
-    # 放到 tests/Feasibility/ 下，和原 mock_requirements.docx 并列
+    # 放到 archive/feasibility/ 下，和原 mock_requirements.docx 并列
     out = PROJECT_ROOT / "tests" / "datasets" / "course_selection_v1.docx"
     build_docx(out)
