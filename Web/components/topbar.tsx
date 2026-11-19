@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Icon } from "./icon";
 import { ThemeMenu } from "./theme-menu";
+import { ApiKeyDialog } from "./api-key-dialog";
+import { getApiKey } from "@/lib/api";
 import { titleOf } from "@/lib/nav";
 
 export function Topbar() {
@@ -11,6 +13,21 @@ export function Topbar() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState("");
+  const [keyOpen, setKeyOpen] = useState(false);
+  const [hasKey, setHasKey] = useState(false);
+
+  // key 状态：顶栏小圆点 + 任意页面都能通过事件唤起设置弹窗
+  useEffect(() => {
+    const sync = () => setHasKey(Boolean(getApiKey()));
+    const openDialog = () => setKeyOpen(true);
+    sync();
+    window.addEventListener("ratgp-key-changed", sync);
+    window.addEventListener("ratgp-open-key-dialog", openDialog);
+    return () => {
+      window.removeEventListener("ratgp-key-changed", sync);
+      window.removeEventListener("ratgp-open-key-dialog", openDialog);
+    };
+  }, []);
 
   // 快捷键 / 聚焦搜索
   useEffect(() => {
@@ -59,8 +76,20 @@ export function Topbar() {
       </form>
 
       <div className="tb-div" />
+      <button
+        type="button"
+        className="btn icon ghost keybtn"
+        title={hasKey ? "API Key 已配置，点击修改" : "未配置 API Key，点击设置"}
+        aria-label="设置 API Key"
+        onClick={() => setKeyOpen(true)}
+      >
+        <Icon name="key" size={15} />
+        {hasKey ? null : <span className="keydot" />}
+      </button>
       <ThemeMenu />
       <div className="avatar">管</div>
+
+      <ApiKeyDialog open={keyOpen} onClose={() => setKeyOpen(false)} />
     </header>
   );
 }

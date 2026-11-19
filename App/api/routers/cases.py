@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import time
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 
 from App.api import repository
 from App.api.schemas import (
@@ -24,7 +24,7 @@ from App.api.schemas import (
     CaseStatusUpdate,
     TestCaseOut,
 )
-from App.services import case_service, req_service
+from App.services import case_service, llm_service, req_service
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +68,23 @@ def list_cases(project_id: int) -> CaseListOut:
     response_model=CaseGenerateResult,
     summary="为已确认需求生成测试用例（大模型）",
 )
-def generate_cases(project_id: int, body: CaseGenerateRequest) -> CaseGenerateResult:
+def generate_cases(
+    project_id: int,
+    body: CaseGenerateRequest,
+    x_deepseek_key: str | None = Header(
+        None,
+        alias="X-DeepSeek-Key",
+        description="用户自己的 DeepSeek API Key；不传则回退到环境变量 DEEPSEEK_API_KEY",
+    ),
+) -> CaseGenerateResult:
     started = time.perf_counter()
+
+    api_key = llm_service.resolve_api_key(x_deepseek_key)
+    if not api_key:
+        raise HTTPException(
+            status_code=401,
+            detail="缺少 DeepSeek API Key：点页面右上角「设置」填入，或配置环境变量 DEEPSEEK_API_KEY",
+        )
 
     if repository.get_project(project_id) is None:
         raise HTTPException(status_code=404, detail=f"项目 {project_id} 不存在")
@@ -96,11 +111,11 @@ def generate_cases(project_id: int, body: CaseGenerateRequest) -> CaseGenerateRe
     rows = [confirmed[rid] for rid in picked]
     logger.info("生成用例 project=%s 需求=%d 条 replace=%s", project_id, len(rows), body.replace)
 
-    result = case_service.generate_cases(rows)
+    result = case_service.generate_cases(rows, api_key)
     if result is None:
         raise HTTPException(
             status_code=502,
-            detail="用例生成失败（检查 DEEPSEEK_API_KEY、网络或配额），可稍后重试",
+            detail="用例生成失败：请检查「设置」里的 API Key 是否正确、账户是否有余额，稍后重试",
         )
 
     if body.replace:

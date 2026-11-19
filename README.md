@@ -46,6 +46,20 @@ npm run dev
 - 接口文档：http://127.0.0.1:8000/docs
 - 前端页面：http://localhost:3000
 
+## 配置 DeepSeek API Key
+
+平台不内置 key（BYOK）：在页面右上角「钥匙」按钮里粘贴你自己的 DeepSeek API Key，
+它只存在当前标签页的 sessionStorage 里，刷新还在、关标签页失效，不落盘。
+
+开发者本机调试可以用环境变量，优先级低于请求头：
+
+```powershell
+$env:DEEPSEEK_API_KEY = "sk-..."   # 只对当前终端有效
+```
+
+两者都没有时，两个调用大模型的接口会返回 401 并提示去设置。
+项目不再读取 `.env`，细节见 `docs/API密钥与安全说明.txt`。
+
 ## 测试
 
 ```powershell

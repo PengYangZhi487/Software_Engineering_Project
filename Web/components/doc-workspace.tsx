@@ -3,9 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { API_BASE } from "@/lib/api";
+import { ApiError, apiFetch, formatApiTime } from "@/lib/api";
 import type { ApiDocumentMeta, ApiParagraph } from "@/lib/api";
-import { formatApiTime } from "@/lib/api";
 import type { Requirement } from "@/lib/types";
 import { Icon } from "./icon";
 import { UploadCard } from "./upload-card";
@@ -47,21 +46,21 @@ export function DocWorkspace({
     setExtracting(true);
     setExtractMsg(null);
     try {
-      const res = await fetch(
-        `${API_BASE}/api/projects/${doc.project_id}/requirements/extract?replace=true&doc_id=${doc.doc_id}`,
+      const res = await apiFetch(
+        `/api/projects/${doc.project_id}/requirements/extract?replace=true&doc_id=${doc.doc_id}`,
         { method: "POST" },
       );
-      const data = (await res.json().catch(() => null)) as
-        | { created?: number; detail?: string }
-        | null;
-      if (!res.ok) throw new Error(data?.detail ?? `HTTP ${res.status}`);
+      const data = (await res.json()) as { created?: number };
       setExtractOpen(false);
       setExtractMsg({
         kind: "ok",
-        text: `已抽取 ${data?.created ?? 0} 条需求，编号从 CR-001 起，状态为「未审核」`,
+        text: `已抽取 ${data.created ?? 0} 条需求，编号从 CR-001 起，状态为「未审核」`,
       });
       router.refresh();
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        window.dispatchEvent(new Event("ratgp-open-key-dialog"));
+      }
       setExtractMsg({ kind: "error", text: err instanceof Error ? err.message : "抽取失败" });
     } finally {
       setExtracting(false);

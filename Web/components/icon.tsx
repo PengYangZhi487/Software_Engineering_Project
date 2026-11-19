@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from "react";
 export type IconName =
   | "search" | "upload" | "flask" | "more" | "down" | "plus" | "x" | "alert"
   | "check" | "chev" | "right" | "sun" | "moon" | "drop" | "doc" | "quote"
-  | "filter" | "shield" | "diff" | "chart" | "flow" | "grid";
+  | "filter" | "shield" | "diff" | "chart" | "flow" | "grid" | "key";
 
 const PATHS: Record<IconName, ReactNode> = {
   search: <><circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L21 21" /></>,
@@ -28,6 +28,7 @@ const PATHS: Record<IconName, ReactNode> = {
   chart: <><path d="M4 20V9M10 20V4M16 20v-7M22 20H2" /></>,
   flow: <><rect x="3" y="3.5" width="6" height="5" rx="1.4" /><rect x="15" y="9.5" width="6" height="5" rx="1.4" /><rect x="3" y="15.5" width="6" height="5" rx="1.4" /><path d="M9 6h3a3 3 0 013 3v.5M9 18h3a3 3 0 003-3v-.5" /></>,
   grid: <><rect x="3.5" y="3.5" width="7" height="7" rx="1.6" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.6" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.6" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.6" /></>,
+  key: <><circle cx="7.5" cy="12" r="4.2" /><path d="M11.7 12H21M18.2 12v3.4M15.2 12v2.4" /></>,
 };
 
 export function Icon({

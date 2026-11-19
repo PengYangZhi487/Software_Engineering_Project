@@ -21,6 +21,23 @@ cd C:\Users\Pyz18\Desktop\Project\Software_Engineering_Project
 .\venv\Scripts\python.exe -m pip install -r App\requirements.txt
 ```
 
+## API Key（BYOK）
+
+只有两个接口真正调用大模型：`requirements/extract` 和 `cases/generate`。它们需要请求头：
+
+```
+X-DeepSeek-Key: sk-...
+```
+
+取 key 的优先级：**请求头 > 环境变量 `DEEPSEEK_API_KEY` > 401**。
+项目不再读取 `App/.env`，key 不落盘；`get_client()` 用 `lru_cache(maxsize=8)`
+按 key 缓存，进程重启即释放。前端在右上角「钥匙」按钮里填写。
+
+```powershell
+# 本机调试：临时设环境变量（只对当前终端有效）
+$env:DEEPSEEK_API_KEY = "sk-..."
+```
+
 ## 接口
 
 | 方法 | 路径 | 说明 |
@@ -180,6 +197,7 @@ curl.exe -o report.csv "http://127.0.0.1:8000/api/projects/1/report/export?forma
 | 码 | 场景 |
 |---|---|
 | 400 | 空文件、解析失败、没有可解析文本、项目无文档却要抽取 |
+| 401 | 调大模型的接口缺少 API Key（请求头和环境变量都没有） |
 | 404 | 项目 / 文档 / 需求不存在 |
 | 413 | 超过 10 MB |
 | 415 | 扩展名不是 `.docx` / `.txt` |
@@ -193,7 +211,7 @@ curl.exe -o report.csv "http://127.0.0.1:8000/api/projects/1/report/export?forma
 .\venv\Scripts\python.exe -m unittest discover -s App\api\tests -v
 ```
 
-18 条：段落与样式、非法扩展名、路由注册、上传→回读、404/415/400、抽取→确认→驳回、质量规则、用例生成→审核→驳回、矩阵覆盖率与 SQL 复算一致性、两版文档比对与受影响用例、报告与 CSV 一致性（全部用假 LLM，不耗额度）。
+19 条：段落与样式、非法扩展名、路由注册、上传→回读、404/415/400、缺 Key 401、抽取→确认→驳回、质量规则、用例生成→审核→驳回、矩阵覆盖率与 SQL 复算一致性、两版文档比对与受影响用例、报告与 CSV 一致性（全部用假 LLM，不耗额度）。
 
 ## 下一步
 

@@ -188,7 +188,7 @@ class RequirementFlowTests(unittest.TestCase):
         )
 
         with patch.object(llm_service, "extract_requirements", return_value=fake):
-            result = extract_requirements(PROJECT_ID, None, True)
+            result = extract_requirements(PROJECT_ID, None, True, "test-key")
 
         # 编号由程序生成，不采信模型给的 X-1 / X-2
         self.assertEqual([item.req_id for item in result.items], ["CR-001", "CR-002"])
@@ -227,8 +227,22 @@ class RequirementFlowTests(unittest.TestCase):
             conn.close()
 
         with self.assertRaises(HTTPException) as ctx:
-            extract_requirements(empty_project, None, True)
+            extract_requirements(empty_project, None, True, "test-key")
         self.assertEqual(ctx.exception.status_code, 400)
+
+    def test_requires_api_key(self) -> None:
+        """没有请求头、也没有环境变量时，两个 LLM 接口都应 401。"""
+        from unittest.mock import patch
+
+        with patch.dict(os.environ, {"DEEPSEEK_API_KEY": ""}):
+            with self.assertRaises(HTTPException) as extract_ctx:
+                extract_requirements(PROJECT_ID, None, True, None)
+            self.assertEqual(extract_ctx.exception.status_code, 401)
+            self.assertIn("API Key", extract_ctx.exception.detail)
+
+            with self.assertRaises(HTTPException) as case_ctx:
+                api_generate_cases(PROJECT_ID, CaseGenerateRequest(), None)
+            self.assertEqual(case_ctx.exception.status_code, 401)
 
 
 class QualityScanTests(unittest.TestCase):
@@ -322,7 +336,7 @@ class CaseFlowTests(unittest.TestCase):
         )
 
         with patch.object(case_service, "generate_cases", return_value=fake):
-            result = api_generate_cases(PROJECT_ID, CaseGenerateRequest(replace=True))
+            result = api_generate_cases(PROJECT_ID, CaseGenerateRequest(replace=True), "test-key")
 
         # CR-999 会因外键约束写不进去，计入 skipped
         self.assertEqual(result.created, 2)
@@ -358,7 +372,7 @@ class CaseFlowTests(unittest.TestCase):
             conn.close()
 
         with self.assertRaises(HTTPException) as ctx:
-            api_generate_cases(PROJECT_ID, CaseGenerateRequest())
+            api_generate_cases(PROJECT_ID, CaseGenerateRequest(), "test-key")
         self.assertEqual(ctx.exception.status_code, 400)
 
 

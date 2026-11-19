@@ -25,14 +25,79 @@ export interface ApiParagraph {
   is_heading: boolean;
 }
 
-async function getJson<T>(path: string, timeoutMs = 5000): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    cache: "no-store",
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  if (!res.ok) {
-    throw new Error(`API ${res.status} ${res.statusText}`);
+/* ---------- DeepSeek API Key（BYOK） ---------- */
+
+const KEY_STORAGE = "ratgp-deepseek-key";
+
+/** 读当前会话的 key；服务端渲染时恒为 null。 */
+export function getApiKey(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return sessionStorage.getItem(KEY_STORAGE) || null;
+  } catch {
+    return null;
   }
+}
+
+/** 写入 key（只进 sessionStorage：刷新还在，关标签页失效）。 */
+export function setApiKey(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(KEY_STORAGE, key.trim());
+    window.dispatchEvent(new Event("ratgp-key-changed"));
+  } catch {
+    /* 隐私模式/存储被禁用时忽略 */
+  }
+}
+
+export function clearApiKey(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(KEY_STORAGE);
+    window.dispatchEvent(new Event("ratgp-key-changed"));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 带 HTTP 状态码的 API 错误，401 由调用方引导去设置 key。 */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+/**
+ * 后端请求的唯一入口：自动带 X-DeepSeek-Key，非 2xx 抛 ApiError。
+ * 没有 key 时也放行——只有真正调大模型的接口会返回 401。
+ */
+export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const key = getApiKey();
+  if (key) headers.set("X-DeepSeek-Key", key);
+  if (typeof init.body === "string" && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store", ...init, headers });
+
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { detail?: string } | null;
+    const message =
+      res.status === 401
+        ? "缺少 DeepSeek API Key：请点右上角「设置」填入"
+        : data?.detail ?? `API ${res.status} ${res.statusText}`;
+    throw new ApiError(message, res.status);
+  }
+  return res;
+}
+
+async function getJson<T>(path: string, timeoutMs = 5000): Promise<T> {
+  const res = await apiFetch(path, { signal: AbortSignal.timeout(timeoutMs) });
   return (await res.json()) as T;
 }
 
@@ -68,7 +133,7 @@ export function formatApiTime(value: string | null): string {
   }).format(date);
 }
 
-/** 浏览器端上传：docx / txt + 版本号 */
+/** 浏览器端上传：docx / txt + 版本号（上传不调大模型，不需要 key） */
 export async function uploadDocument(
   file: File,
   version: string,
@@ -78,17 +143,9 @@ export async function uploadDocument(
   body.append("file", file);
   body.append("version", version || "V1.0");
 
-  const res = await fetch(`${API_BASE}/api/projects/${projectId}/documents`, {
+  const res = await apiFetch(`/api/projects/${projectId}/documents`, {
     method: "POST",
     body,
   });
-
-  const data = (await res.json().catch(() => null)) as
-    | (UploadResult & { detail?: string })
-    | null;
-
-  if (!res.ok) {
-    throw new Error(data?.detail ?? `上传失败（HTTP ${res.status}）`);
-  }
-  return data as UploadResult;
+  return (await res.json()) as UploadResult;
 }

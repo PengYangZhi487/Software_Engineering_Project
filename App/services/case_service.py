@@ -45,6 +45,7 @@ def _format_req(row: dict) -> str:
 
 def generate_cases(
     requirements: Iterable[dict],
+    api_key: str,
     max_retries: int = 2,
 ) -> GeneratedCaseList | None:
     reqs = list(requirements)
@@ -69,7 +70,7 @@ JSON Schema：
 {listing}
 """
 
-    client = get_client()
+    client = get_client(api_key)
     prompt = base_prompt
 
     for attempt in range(max_retries + 1):

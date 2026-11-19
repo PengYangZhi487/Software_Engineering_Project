@@ -47,7 +47,8 @@ app.add_middleware(
     allow_origins=CORS_ORIGINS,
     allow_credentials=False,
     allow_methods=["*"],
-    allow_headers=["*"],
+    # 自定义头会触发预检，必须显式放行；X-DeepSeek-Key 由前端设置弹窗注入
+    allow_headers=["Content-Type", "X-DeepSeek-Key", "Accept"],
 )
 
 app.include_router(health.router)

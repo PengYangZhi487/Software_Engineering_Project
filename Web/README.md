@@ -71,9 +71,11 @@ Web/
 │     ├─ overview/page.tsx
 │     ├─ document/page.tsx    # 服务端取数 → DocWorkspace
 │     ├─ requirements/page.tsx
-│     └─ [step]/page.tsx      # 其余步骤的空状态
+│     ├─ quality/  cases/  trace/  changes/  report/
+│     └─ [step]/page.tsx      # 遗留空状态页（STEPS 已空，访问即 404）
 ├─ components/
 │  ├─ sidebar.tsx  topbar.tsx  theme-menu.tsx  icon.tsx
+│  ├─ api-key-dialog.tsx      # API Key 设置弹窗（BYOK）
 │  ├─ req-explorer.tsx        # 需求表格 + 筛选 + 抽屉
 │  ├─ doc-workspace.tsx       # 三栏联动（客户端）
 │  └─ upload-card.tsx         # 拖拽上传 + 版本号
@@ -101,6 +103,6 @@ NEXT_PUBLIC_API_BASE=http://127.0.0.1:8000
 ## 已知取舍
 
 - 没引 Tailwind / shadcn：这套界面是 token 驱动的，P0 的 CSS 已经是成品。需要 Dialog / Select 时再按需引入单组件。
-- 需求状态（确认/驳回）目前只弹提示，不改数据 —— P3 接 `App/services/req_service.py` 的 `update_status`。
-- 没有登录，`auth_service.py` 还是空文件。
-- 候选需求是 mock，P3 才接 LLM 抽取。
+- 没有登录体系：需求 / 用例 / 报告数据全局共享，"是否配置 Key"才是事实上的身份；用户隔离属于二期。
+- 大模型 Key 走 BYOK：右上角「钥匙」按钮填入，只存 sessionStorage（刷新还在、关标签页失效），不落盘、不进代码；开发本机可用环境变量 `DEEPSEEK_API_KEY`。详见 `../docs/API密钥与安全说明.txt`。
+- 多项目切换未做，前端 `projectId` 固定为 1。

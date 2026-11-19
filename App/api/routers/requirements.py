@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import time
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query
 
 from App.api import repository
 from App.api.schemas import (
@@ -77,8 +77,20 @@ def extract_requirements(
     project_id: int,
     doc_id: int | None = Query(None, description="不传则用最新文档"),
     replace: bool = Query(True, description="true=先清空旧需求再写入"),
+    x_deepseek_key: str | None = Header(
+        None,
+        alias="X-DeepSeek-Key",
+        description="用户自己的 DeepSeek API Key；不传则回退到环境变量 DEEPSEEK_API_KEY",
+    ),
 ) -> ExtractResult:
     started = time.perf_counter()
+
+    api_key = llm_service.resolve_api_key(x_deepseek_key)
+    if not api_key:
+        raise HTTPException(
+            status_code=401,
+            detail="缺少 DeepSeek API Key：点页面右上角「设置」填入，或配置环境变量 DEEPSEEK_API_KEY",
+        )
 
     if repository.get_project(project_id) is None:
         raise HTTPException(status_code=404, detail=f"项目 {project_id} 不存在")
@@ -93,11 +105,11 @@ def extract_requirements(
     text, para_index = source
 
     logger.info("开始抽取 project=%s doc=%s 字符=%d", project_id, target_doc, len(text))
-    result = llm_service.extract_requirements(text)
+    result = llm_service.extract_requirements(text, api_key)
     if result is None:
         raise HTTPException(
             status_code=502,
-            detail="大模型抽取失败（检查 DEEPSEEK_API_KEY、网络或配额），可稍后重试",
+            detail="大模型调用失败：请检查「设置」里的 API Key 是否正确、账户是否有余额，稍后重试",
         )
 
     base = 0 if replace else repository.max_requirement_number(project_id)

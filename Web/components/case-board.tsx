@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { API_BASE } from "@/lib/api";
+import { ApiError, apiFetch } from "@/lib/api";
 import type { CaseFeed, TestCaseItem } from "@/lib/server";
 import type { Requirement } from "@/lib/types";
 import { Icon } from "./icon";
@@ -80,23 +80,22 @@ export function CaseBoard({ feed, requirements }: { feed: CaseFeed; requirements
     setGenerating(true);
     setMessage(null);
     try {
-      const res = await fetch(`${API_BASE}/api/projects/1/cases/generate`, {
+      const res = await apiFetch("/api/projects/1/cases/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ req_ids: ids, replace: true }),
       });
-      const data = (await res.json().catch(() => null)) as
-        | { created?: number; skipped?: number; detail?: string }
-        | null;
-      if (!res.ok) throw new Error(data?.detail ?? `HTTP ${res.status}`);
+      const data = (await res.json()) as { created?: number; skipped?: number };
       setGenOpen(false);
       setSelected(new Set());
       setMessage({
         kind: "ok",
-        text: `已生成 ${data?.created ?? 0} 条用例${data?.skipped ? `，${data.skipped} 条写入失败` : ""}`,
+        text: `已生成 ${data.created ?? 0} 条用例${data.skipped ? `，${data.skipped} 条写入失败` : ""}`,
       });
       router.refresh();
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        window.dispatchEvent(new Event("ratgp-open-key-dialog"));
+      }
       setMessage({ kind: "error", text: err instanceof Error ? err.message : "生成失败" });
     } finally {
       setGenerating(false);
@@ -106,15 +105,10 @@ export function CaseBoard({ feed, requirements }: { feed: CaseFeed; requirements
   async function review(c: TestCaseItem, status: string) {
     setBusyId(c.tc_id);
     try {
-      const res = await fetch(`${API_BASE}/api/cases/${c.tc_id}`, {
+      await apiFetch(`/api/cases/${c.tc_id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(data?.detail ?? `HTTP ${res.status}`);
-      }
       router.refresh();
     } catch (err) {
       setMessage({ kind: "error", text: err instanceof Error ? err.message : "保存失败" });

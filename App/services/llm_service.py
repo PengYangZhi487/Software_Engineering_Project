@@ -1,22 +1,24 @@
 # App/services/llm_service.py
+"""LLM 客户端与需求抽取。
+
+API Key 来源（优先级从高到低）：
+1. 请求头 ``X-DeepSeek-Key`` —— 用户在界面右上角「设置」里填的，只存在浏览器会话里；
+2. 系统环境变量 ``DEEPSEEK_API_KEY`` —— 开发者本机调试用。
+
+两处都没有时由 API 层返回 401。项目不再读取 ``.env`` 文件，key 不落盘。
+"""
 import os
 import json
 import logging
-from pathlib import Path
+from functools import lru_cache
 from typing import List, Optional
 
-# App/services/llm_service.py 顶部 import 区追加
-from pydantic import field_validator
-
-from dotenv import load_dotenv
 from openai import OpenAI
-from pydantic import BaseModel, Field, ValidationError
-
-# App/.env 的绝对路径：llm_service.py 在 App/services/ 下，往上两级
-_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(dotenv_path=_ENV_PATH)
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 logger = logging.getLogger(__name__)
+
+ENV_KEY = "DEEPSEEK_API_KEY"
 
 
 # ---------- Pydantic 模型：原样保留 ----------
@@ -46,20 +48,30 @@ class RequirementList(BaseModel):
     requirements: List[Requirement]
 
 
-# ---------- 客户端：懒加载，避免 import 时 exit ----------
-_client: Optional[OpenAI] = None
+# ---------- 客户端：按 key 缓存，进程内复用连接 ----------
+def resolve_api_key(header_key: str | None = None) -> str | None:
+    """按「请求头 > 系统环境变量」取 key；都为空返回 None。"""
+    for candidate in (header_key, os.getenv(ENV_KEY)):
+        if candidate and candidate.strip():
+            return candidate.strip()
+    return None
 
 
-def get_client() -> OpenAI:
-    global _client
-    if _client is None:
-        api_key = os.getenv("DEEPSEEK_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                f"未读取到 DEEPSEEK_API_KEY，请检查 {_ENV_PATH} 是否存在并含该变量"
-            )
-        _client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
-    return _client
+@lru_cache(maxsize=8)
+def _cached_client(api_key: str) -> OpenAI:
+    return OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+
+
+def get_client(api_key: str) -> OpenAI:
+    """按调用方给的 key 取 client。
+
+    只缓存在进程内存里（最多 8 个），进程结束即释放，写不到磁盘。
+    不要把 key 打日志——这里只记录"是否已配置"。
+    """
+    key = (api_key or "").strip()
+    if not key:
+        raise ValueError("缺少 DeepSeek API Key")
+    return _cached_client(key)
 
 
 def _format_validation_error(e: ValidationError) -> str:
@@ -72,10 +84,15 @@ def _format_validation_error(e: ValidationError) -> str:
 
 
 # ---------- 主函数 ----------
-def extract_requirements(text: str, max_retries: int = 3) -> Optional[RequirementList]:
+def extract_requirements(
+    text: str,
+    api_key: str,
+    max_retries: int = 3,
+) -> Optional[RequirementList]:
     """
     从需求文本中提取结构化需求。
     成功返回 RequirementList 对象；重试耗尽返回 None。
+    api_key 由调用方传入（请求头或环境变量），本函数不读 .env。
     """
     schema_str = json.dumps(RequirementList.model_json_schema(), ensure_ascii=False)
 
@@ -108,7 +125,7 @@ def extract_requirements(text: str, max_retries: int = 3) -> Optional[Requiremen
     """
 
     current_prompt = base_prompt
-    client = get_client()
+    client = get_client(api_key)
 
     for attempt in range(max_retries):
         logger.info("LLM 需求提取第 %d/%d 次调用", attempt + 1, max_retries)
