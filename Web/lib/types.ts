@@ -5,6 +5,8 @@ export type CaseType = "normal" | "abnormal" | "boundary";
 
 export interface Requirement {
   id: string;
+  /** 所属项目；req_id 只在项目内唯一，接口定位需要它 */
+  project_id: number;
   title: string;
   desc: string;
   type: ReqType;

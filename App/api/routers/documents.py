@@ -13,6 +13,7 @@ GET  /api/documents/{doc_id}/paragraphs
 from __future__ import annotations
 
 import logging
+import zipfile
 from pathlib import Path
 from uuid import uuid4
 
@@ -28,6 +29,27 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["documents"])
 
 _CHUNK = 1024 * 1024
+
+# docx 是 zip 包：10 MB 的压缩包可能解压出几个 GB，解析前先看一眼体积
+MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024   # 解压后总量上限 200 MB
+MAX_COMPRESSION_RATIO = 100                  # 压缩比超过 100 视为异常
+
+
+def _guard_docx(path: Path) -> None:
+    """拒绝解压后体积异常或根本不是 docx 的文件。
+
+    在 python-docx 真正解压之前执行，避免 zip bomb 把内存打满。
+    """
+    if path.suffix.lower() != ".docx":
+        return
+    try:
+        with zipfile.ZipFile(path) as zf:
+            total = sum(info.file_size for info in zf.infolist())
+            packed = max(path.stat().st_size, 1)
+            if total > MAX_UNCOMPRESSED_BYTES or total > packed * MAX_COMPRESSION_RATIO:
+                raise ValueError("文档解压后体积异常，已拒绝解析")
+    except zipfile.BadZipFile as exc:
+        raise ValueError("不是有效的 DOCX 文件") from exc
 
 
 def _to_paragraphs(para_index: list[dict]) -> list[Paragraph]:
@@ -95,7 +117,7 @@ async def upload_document(
     except Exception as exc:  # 磁盘写入失败
         dest.unlink(missing_ok=True)
         logger.exception("保存上传文件失败")
-        raise HTTPException(status_code=500, detail=f"保存文件失败：{exc}") from exc
+        raise HTTPException(status_code=500, detail="文件保存失败，请稍后重试") from exc
     finally:
         await file.close()
 
@@ -104,11 +126,21 @@ async def upload_document(
         raise HTTPException(status_code=400, detail="文件为空")
 
     try:
+        _guard_docx(dest)
         text, para_index = parse_document(str(dest))
+    except HTTPException:
+        dest.unlink(missing_ok=True)
+        raise
+    except ValueError as exc:  # 可预期的拒绝（体积异常 / 编码识别失败），文案本身安全
+        dest.unlink(missing_ok=True)
+        logger.warning("解析被拒 %s: %s", original, exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         dest.unlink(missing_ok=True)
-        logger.warning("解析失败 %s: %s", original, exc)
-        raise HTTPException(status_code=400, detail=f"解析失败：{exc}") from exc
+        logger.exception("解析失败 %s", original)
+        raise HTTPException(
+            status_code=400, detail="文档解析失败，请确认是有效的 DOCX/TXT 文件"
+        ) from exc
 
     if not text.strip():
         dest.unlink(missing_ok=True)
@@ -126,7 +158,7 @@ async def upload_document(
     except Exception as exc:
         dest.unlink(missing_ok=True)
         logger.exception("入库失败")
-        raise HTTPException(status_code=500, detail=f"入库失败：{exc}") from exc
+        raise HTTPException(status_code=500, detail="保存解析结果失败，请稍后重试") from exc
 
     logger.info(
         "文档已入库 doc_id=%s project=%s file=%s 段落=%d 字符=%d",

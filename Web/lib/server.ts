@@ -61,6 +61,7 @@ function toRequirement(row: ApiRequirement): Requirement {
   const risks: Risk[] = row.is_ambiguous ? ["ambiguous"] : [];
   return {
     id: row.req_id,
+    project_id: row.project_id,
     title: row.title,
     desc: row.description,
     type: row.req_type === "non_functional" ? "non_functional" : "functional",

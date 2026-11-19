@@ -2,6 +2,8 @@ import os
 import sqlite3
 import hashlib
 
+from App.dao.migrations import migrate_requirement_pk
+
 # 动态获取 App 目录的绝对路径
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # 允许用环境变量覆盖（测试、联调时指向临时库）
@@ -73,29 +75,33 @@ def init_db():
         )
     ''')
     
-    # 4. 建表 Requirement
+    # 4. 建表 Requirement（id 自增主键；req_id 在项目内唯一）
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Requirement (
-            req_id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            req_id TEXT NOT NULL,
             project_id INTEGER NOT NULL,
             doc_id INTEGER,
             title TEXT NOT NULL,
             description TEXT NOT NULL,
             acceptance TEXT,
+            req_type TEXT DEFAULT 'functional',
             status TEXT DEFAULT '未审核',
             source_location TEXT,
             is_ambiguous INTEGER DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME,
+            UNIQUE(project_id, req_id),
             FOREIGN KEY(project_id) REFERENCES Project(project_id),
             FOREIGN KEY(doc_id) REFERENCES Document(doc_id)
         )
     ''')
     
-    # 5. 建表 TestCase
+    # 5. 建表 TestCase（project_id + req_id 复合外键）
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS TestCase (
             tc_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER,
             req_id TEXT,
             title TEXT NOT NULL,
             preconditions TEXT,
@@ -105,40 +111,43 @@ def init_db():
             status TEXT DEFAULT '已生成',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME,
-            FOREIGN KEY(req_id) REFERENCES Requirement(req_id)
+            FOREIGN KEY(project_id, req_id) REFERENCES Requirement(project_id, req_id)
         )
     ''')
     
-    # 6. 建表 RequirementTestLink
+    # 6. 建表 RequirementTestLink（按项目隔离）
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS RequirementTestLink (
             link_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
             req_id TEXT NOT NULL,
             tc_id INTEGER NOT NULL,
             link_source TEXT DEFAULT '人工',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(req_id) REFERENCES Requirement(req_id),
+            FOREIGN KEY(project_id, req_id) REFERENCES Requirement(project_id, req_id),
             FOREIGN KEY(tc_id) REFERENCES TestCase(tc_id),
-            UNIQUE(req_id, tc_id)
+            UNIQUE(project_id, req_id, tc_id)
         )
     ''')
     
-    # 7. 建表 ChangeLog
+    # 7. 建表 ChangeLog（按项目隔离）
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS ChangeLog (
             change_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
             req_id TEXT NOT NULL,
             old_content TEXT,
             new_content TEXT,
             change_type TEXT,
             version TEXT NOT NULL,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(req_id) REFERENCES Requirement(req_id)
+            FOREIGN KEY(project_id, req_id) REFERENCES Requirement(project_id, req_id)
         )
     ''')
 
     # === 新增：迁移已有表结构 ===
     _migrate_requirement_add_req_type(conn)
+    migrate_requirement_pk(conn)
     
     # 写入默认管理员 (admin / 123456)
     # 密码哈希（简化版，仅作演示演示）

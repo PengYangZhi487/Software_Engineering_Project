@@ -2,7 +2,7 @@
 
 POST /api/projects/{project_id}/requirements/extract  调用 LLM 抽取并入库
 GET  /api/projects/{project_id}/requirements          项目需求列表
-PATCH /api/requirements/{req_id}                      确认 / 驳回 / 撤回
+PATCH /api/projects/{project_id}/requirements/{req_id}   确认 / 驳回 / 撤回
 
 约定：
 - 抽取是「候选」，一律以 未审核 入库；确认与否由人决定（AI 提候选、人做决策）。
@@ -99,6 +99,12 @@ def extract_requirements(
     if not target_doc:
         raise HTTPException(status_code=400, detail="项目里还没有文档，请先上传")
 
+    doc_meta = repository.get_document(target_doc)
+    if doc_meta is None:
+        raise HTTPException(status_code=404, detail=f"文档 {target_doc} 不存在")
+    if doc_meta.project_id != project_id:
+        raise HTTPException(status_code=400, detail="该文档不属于当前项目")
+
     source = repository.get_document_source(target_doc)
     if not source or not source[0].strip():
         raise HTTPException(status_code=400, detail=f"文档 {target_doc} 没有可抽取的文本")
@@ -127,10 +133,6 @@ def extract_requirements(
         clear_first=replace,
     )
 
-    meta = repository.get_document(target_doc)
-    if meta is None:  # pragma: no cover - 理论上不会发生
-        raise HTTPException(status_code=500, detail="文档记录丢失")
-
     rows = req_service.get_requirements(project_id)
     elapsed = int((time.perf_counter() - started) * 1000)
     logger.info(
@@ -139,7 +141,7 @@ def extract_requirements(
     )
 
     return ExtractResult(
-        document=meta,
+        document=doc_meta,
         created=stats["saved"],
         skipped=stats["skipped"],
         ambiguous=stats["ambiguous"],
@@ -150,21 +152,23 @@ def extract_requirements(
 
 
 @router.patch(
-    "/requirements/{req_id}",
+    "/projects/{project_id}/requirements/{req_id}",
     response_model=RequirementOut,
     summary="确认 / 驳回 / 撤回需求",
 )
-def update_requirement(req_id: str, body: RequirementStatusUpdate) -> RequirementOut:
+def update_requirement(
+    project_id: int, req_id: str, body: RequirementStatusUpdate
+) -> RequirementOut:
     if body.status not in req_service.ALLOWED_STATUS:
         raise HTTPException(
             status_code=422,
             detail=f"非法状态 {body.status}，只支持 {sorted(req_service.ALLOWED_STATUS)}",
         )
 
-    if not req_service.update_status(req_id, body.status):
+    if not req_service.update_status(project_id, req_id, body.status):
         raise HTTPException(status_code=404, detail=f"需求 {req_id} 不存在")
 
-    row = repository.get_requirement(req_id)
+    row = repository.get_requirement(project_id, req_id)
     if row is None:  # pragma: no cover
         raise HTTPException(status_code=404, detail=f"需求 {req_id} 不存在")
     return _to_out(row)

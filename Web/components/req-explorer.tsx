@@ -112,7 +112,8 @@ export function ReqExplorer({
     setBusy(true);
     try {
       for (const id of ids) {
-        const res = await fetch(`${API_BASE}/api/requirements/${id}`, {
+        const projectId = items.find((r) => r.id === id)?.project_id ?? 1;
+        const res = await fetch(`${API_BASE}/api/projects/${projectId}/requirements/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status }),

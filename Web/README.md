@@ -46,7 +46,7 @@ Node ≥ 18；本项目在 Node 24 + Next 15.5 上验证。
 ## P3：需求抽取与确认
 
 - 后端 `POST /api/projects/1/requirements/extract` 会调用 DeepSeek 抽取，结果以 `未审核` 入库、编号由程序生成（`CR-001…`）。
-- 前端 `/requirements` 读 `GET /api/projects/1/requirements`，抽屉里的 **确认 / 驳回 / 撤回** 直接 `PATCH /api/requirements/{id}`，成功后 `router.refresh()`。
+- 前端 `/requirements` 读 `GET /api/projects/1/requirements`，抽屉里的 **确认 / 驳回 / 撤回** 直接 `PATCH /api/projects/{project_id}/requirements/{id}`，成功后 `router.refresh()`。
 - 顶部与侧栏的数字（需求总数、模糊数、待审核）都来自同一次服务端取数，和列表一致。
 
 ## P4：质量分析与抽取入口

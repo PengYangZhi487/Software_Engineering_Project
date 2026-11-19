@@ -19,7 +19,6 @@ class DocumentMeta(BaseModel):
     upload_time: str | None = None
     paragraphs: int = 0
     chars: int = 0
-    file_path: str | None = None
 
 
 class DocumentUploadResponse(BaseModel):

@@ -29,9 +29,11 @@ def _normalize_req_type(v: Optional[str]) -> str:
 
 # ---------- 清理 ----------
 def clear_project_requirements(project_id: int) -> int:
-    """清空指定项目的需求（用于测试重建）。返回删除条数。"""
+    """清空指定项目的需求及其子数据（用于测试重建）。返回删除条数。"""
     conn = get_connection()
     try:
+        for table in ("ChangeLog", "RequirementTestLink", "TestCase"):
+            conn.execute(f"DELETE FROM {table} WHERE project_id = ?", (project_id,))
         cur = conn.execute("DELETE FROM Requirement WHERE project_id = ?", (project_id,))
         conn.commit()
         logger.info("已清空 project_id=%s 的需求 %d 条", project_id, cur.rowcount)
@@ -75,16 +77,8 @@ def save_requirements(
     try:
         if clear_first:
             # 重新抽取会替换需求编号，旧需求下的用例与关联必须先清掉，否则外键会拦。
-            conn.execute(
-                "DELETE FROM RequirementTestLink WHERE req_id IN "
-                "(SELECT req_id FROM Requirement WHERE project_id = ?)",
-                (project_id,),
-            )
-            conn.execute(
-                "DELETE FROM TestCase WHERE req_id IN "
-                "(SELECT req_id FROM Requirement WHERE project_id = ?)",
-                (project_id,),
-            )
+            for table in ("ChangeLog", "RequirementTestLink", "TestCase"):
+                conn.execute(f"DELETE FROM {table} WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM Requirement WHERE project_id = ?", (project_id,))
             conn.commit()
             logger.info("clear_first=True，已清空 project_id=%s 的旧需求及其用例", project_id)
@@ -189,15 +183,16 @@ def count_requirements(project_id: int) -> int:
 # 已驳回 用于记录「人明确拒绝的 AI 候选」，保留行以便追溯，不物理删除。
 ALLOWED_STATUS = {"未审核", "已确认", "已驳回"}
 
-def update_status(req_id: str, new_status: str) -> bool:
+def update_status(project_id: int, req_id: str, new_status: str) -> bool:
     """切换需求状态（未审核 / 已确认 / 已驳回）。返回是否更新成功。"""
     if new_status not in ALLOWED_STATUS:
         raise ValueError(f"非法状态: {new_status}")
     conn = get_connection()
     try:
         cur = conn.execute(
-            "UPDATE Requirement SET status=?, updated_at=CURRENT_TIMESTAMP WHERE req_id=?",
-            (new_status, req_id),
+            "UPDATE Requirement SET status=?, updated_at=CURRENT_TIMESTAMP "
+            "WHERE project_id=? AND req_id=?",
+            (new_status, project_id, req_id),
         )
         conn.commit()
         return cur.rowcount > 0

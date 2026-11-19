@@ -12,6 +12,7 @@ import json
 import os
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -76,9 +77,9 @@ def setUpModule() -> None:
         conn.close()
 
 
-def _upload(data: bytes, filename: str, version: str = "V1.0"):
+def _upload(data: bytes, filename: str, version: str = "V1.0", project_id: int | None = None):
     up = UploadFile(filename=filename, file=io.BytesIO(data))
-    return asyncio.run(upload_document(PROJECT_ID, up, version))
+    return asyncio.run(upload_document(project_id or PROJECT_ID, up, version))
 
 
 class ParseTests(unittest.TestCase):
@@ -109,11 +110,11 @@ class ApiTests(unittest.TestCase):
         self.assertIn("/api/documents/{doc_id}/paragraphs", paths)
         self.assertIn("/api/projects/{project_id}/requirements", paths)
         self.assertIn("/api/projects/{project_id}/requirements/extract", paths)
-        self.assertIn("/api/requirements/{req_id}", paths)
+        self.assertIn("/api/projects/{project_id}/requirements/{req_id}", paths)
         self.assertIn("/api/projects/{project_id}/quality/issues", paths)
         self.assertIn("/api/projects/{project_id}/cases", paths)
         self.assertIn("/api/projects/{project_id}/cases/generate", paths)
-        self.assertIn("/api/cases/{tc_id}", paths)
+        self.assertIn("/api/projects/{project_id}/cases/{tc_id}", paths)
         self.assertIn("/api/projects/{project_id}/trace", paths)
         self.assertIn("/api/projects/{project_id}/trace/coverage", paths)
         self.assertIn("/api/projects/{project_id}/document-diff", paths)
@@ -140,7 +141,16 @@ class ApiTests(unittest.TestCase):
 
         docs = repository.list_documents(PROJECT_ID)
         self.assertTrue(any(d.doc_id == resp.document.doc_id for d in docs))
-        self.assertTrue(Path(resp.document.file_path).exists(), "原始文件应落盘保留")
+
+        conn = get_connection()
+        try:
+            row = conn.execute(
+                "SELECT file_path FROM Document WHERE doc_id = ?", (resp.document.doc_id,)
+            ).fetchone()
+        finally:
+            conn.close()
+        self.assertTrue(Path(row["file_path"]).exists(), "原始文件应落盘保留")
+        self.assertNotIn("file_path", resp.document.model_dump(), "元信息不应暴露服务器路径")
 
     def test_upload_rejects_wrong_type(self) -> None:
         with self.assertRaises(HTTPException) as ctx:
@@ -157,6 +167,17 @@ class ApiTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx:
             _upload("   \n\n  ".encode("utf-8"), "empty.txt")
         self.assertEqual(ctx.exception.status_code, 400)
+
+    def test_upload_rejects_zip_bomb(self) -> None:
+        """10 MB 的 docx 可能解压出几个 GB，解析前必须拒绝。"""
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("word/document.xml", "<x>" + "a" * (2 * 1024 * 1024) + "</x>")
+
+        with self.assertRaises(HTTPException) as ctx:
+            _upload(buf.getvalue(), "bomb.docx")
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("体积", ctx.exception.detail)
 
 
 class RequirementFlowTests(unittest.TestCase):
@@ -197,10 +218,14 @@ class RequirementFlowTests(unittest.TestCase):
         self.assertTrue(result.items[1].is_ambiguous, "「快速」「明显」应被标为模糊")
         self.assertEqual(result.items[0].status, "未审核")
 
-        confirmed = update_requirement("CR-001", RequirementStatusUpdate(status="已确认"))
+        confirmed = update_requirement(
+            PROJECT_ID, "CR-001", RequirementStatusUpdate(status="已确认")
+        )
         self.assertEqual(confirmed.status, "已确认")
 
-        rejected = update_requirement("CR-002", RequirementStatusUpdate(status="已驳回"))
+        rejected = update_requirement(
+            PROJECT_ID, "CR-002", RequirementStatusUpdate(status="已驳回")
+        )
         self.assertEqual(rejected.status, "已驳回")
 
         listing = list_requirements(PROJECT_ID, None)
@@ -209,12 +234,53 @@ class RequirementFlowTests(unittest.TestCase):
         self.assertEqual(listing.ambiguous, 1)
 
         with self.assertRaises(HTTPException) as missing:
-            update_requirement("CR-999", RequirementStatusUpdate(status="已确认"))
+            update_requirement(PROJECT_ID, "CR-999", RequirementStatusUpdate(status="已确认"))
         self.assertEqual(missing.exception.status_code, 404)
 
         with self.assertRaises(HTTPException) as illegal:
-            update_requirement("CR-001", RequirementStatusUpdate(status="随便"))
+            update_requirement(PROJECT_ID, "CR-001", RequirementStatusUpdate(status="随便"))
         self.assertEqual(illegal.exception.status_code, 422)
+
+    def test_two_projects_can_reuse_req_id(self) -> None:
+        """C 方案的核心验收：两个项目各自从 CR-001 开始，互不冲突。"""
+        from unittest.mock import patch
+
+        conn = get_connection()
+        try:
+            cur = conn.execute("INSERT INTO Project (project_name) VALUES ('第二个项目')")
+            p2 = int(cur.lastrowid)
+            conn.commit()
+        finally:
+            conn.close()
+
+        _upload(DOCX.read_bytes(), "course_v2.docx", "V1.0", p2)
+
+        fake = llm_service.RequirementList(
+            requirements=[
+                llm_service.Requirement(
+                    req_id="X-1",
+                    title="课程容量",
+                    description="课程默认容量 50 人。",
+                    req_type="functional",
+                    acceptance_criteria=["50 人后拒绝"],
+                )
+            ]
+        )
+        with patch.object(llm_service, "extract_requirements", return_value=fake):
+            result = extract_requirements(p2, None, True, "test-key")
+
+        self.assertEqual(result.created, 1)
+        self.assertEqual([item.req_id for item in result.items], ["CR-001"])
+
+        conn = get_connection()
+        try:
+            rows = conn.execute(
+                "SELECT project_id, req_id FROM Requirement WHERE req_id = 'CR-001' ORDER BY project_id"
+            ).fetchall()
+        finally:
+            conn.close()
+        self.assertEqual([int(r["project_id"]) for r in rows], [PROJECT_ID, p2],
+                         "同一个 CR-001 应能在两个项目下并存")
 
     def test_extract_requires_document(self) -> None:
         # 新项目没有任何文档，抽取应报 400 而不是 500
@@ -229,6 +295,22 @@ class RequirementFlowTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx:
             extract_requirements(empty_project, None, True, "test-key")
         self.assertEqual(ctx.exception.status_code, 400)
+
+    def test_extract_rejects_foreign_document(self) -> None:
+        """A 项目的接口不能拿 B 项目的 doc_id 抽取。"""
+        conn = get_connection()
+        try:
+            cur = conn.execute("INSERT INTO Project (project_name) VALUES ('别的项目')")
+            other = int(cur.lastrowid)
+            conn.commit()
+        finally:
+            conn.close()
+
+        foreign = _upload(DOCX.read_bytes(), "other.docx", "V1.0", other)
+        with self.assertRaises(HTTPException) as ctx:
+            extract_requirements(PROJECT_ID, foreign.document.doc_id, True, "test-key")
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("不属于", ctx.exception.detail)
 
     def test_requires_api_key(self) -> None:
         """没有请求头、也没有环境变量时，两个 LLM 接口都应 401。"""
@@ -281,7 +363,10 @@ class CaseFlowTests(unittest.TestCase):
         try:
             conn.execute("DELETE FROM RequirementTestLink")
             conn.execute("DELETE FROM TestCase")
-            conn.execute("DELETE FROM Requirement WHERE req_id = 'CR-901'")
+            conn.execute(
+                "DELETE FROM Requirement WHERE project_id = ? AND req_id = 'CR-901'",
+                (PROJECT_ID,),
+            )
             conn.execute(
                 """
                 INSERT INTO Requirement
@@ -349,18 +434,18 @@ class CaseFlowTests(unittest.TestCase):
         self.assertEqual(listing.by_status.get("已生成"), 2)
         case = listing.items[0]
 
-        reviewed = update_case(case.tc_id, CaseStatusUpdate(status="已审核"))
+        reviewed = update_case(PROJECT_ID, case.tc_id, CaseStatusUpdate(status="已审核"))
         self.assertEqual(reviewed.status, "已审核")
 
-        rejected = update_case(case.tc_id, CaseStatusUpdate(status="已驳回"))
+        rejected = update_case(PROJECT_ID, case.tc_id, CaseStatusUpdate(status="已驳回"))
         self.assertEqual(rejected.status, "已驳回")
 
         with self.assertRaises(HTTPException) as missing:
-            update_case(999999, CaseStatusUpdate(status="已审核"))
+            update_case(PROJECT_ID, 999999, CaseStatusUpdate(status="已审核"))
         self.assertEqual(missing.exception.status_code, 404)
 
         with self.assertRaises(HTTPException) as illegal:
-            update_case(case.tc_id, CaseStatusUpdate(status="随便"))
+            update_case(PROJECT_ID, case.tc_id, CaseStatusUpdate(status="随便"))
         self.assertEqual(illegal.exception.status_code, 422)
 
     def test_generate_requires_confirmed(self) -> None:
@@ -388,16 +473,22 @@ class TraceTests(unittest.TestCase):
                 "VALUES ('CR-901', ?, '课程容量', '达到 50 人后拒绝', '[]', 'functional', '已确认', 0)",
                 (PROJECT_ID,),
             )
-            conn.execute("UPDATE Requirement SET status = '已确认' WHERE req_id = 'CR-901'")
+            conn.execute(
+                "UPDATE Requirement SET status = '已确认' WHERE project_id = ? AND req_id = 'CR-901'",
+                (PROJECT_ID,),
+            )
             conn.execute("DELETE FROM RequirementTestLink")
             conn.execute("DELETE FROM TestCase")
             cur = conn.execute(
-                "INSERT INTO TestCase (req_id, title, steps, expected_result, test_type, status) "
-                "VALUES ('CR-901', '容量边界', '[\"提交选课\"]', '拒绝', 'boundary', '已审核')"
+                "INSERT INTO TestCase "
+                "(project_id, req_id, title, steps, expected_result, test_type, status) "
+                "VALUES (?, 'CR-901', '容量边界', '[\"提交选课\"]', '拒绝', 'boundary', '已审核')",
+                (PROJECT_ID,),
             )
             conn.execute(
-                "INSERT INTO RequirementTestLink (req_id, tc_id, link_source) VALUES ('CR-901', ?, 'AI')",
-                (cur.lastrowid,),
+                "INSERT INTO RequirementTestLink (project_id, req_id, tc_id, link_source) "
+                "VALUES (?, 'CR-901', ?, 'AI')",
+                (PROJECT_ID, cur.lastrowid),
             )
             conn.commit()
         finally:
@@ -422,13 +513,13 @@ class TraceTests(unittest.TestCase):
         trace = get_trace(PROJECT_ID)
         tc_id = trace.cases[0].tc_id
 
-        update_case(tc_id, CaseStatusUpdate(status="已驳回"))
+        update_case(PROJECT_ID, tc_id, CaseStatusUpdate(status="已驳回"))
         cov = get_coverage(PROJECT_ID)
         self.assertEqual(cov.covered, 0)
         self.assertEqual(cov.coverage_pct, 0)
         self.assertTrue(cov.consistent)
 
-        update_case(tc_id, CaseStatusUpdate(status="已审核"))
+        update_case(PROJECT_ID, tc_id, CaseStatusUpdate(status="已审核"))
         self.assertEqual(get_coverage(PROJECT_ID).coverage_pct, 100)
 
 
@@ -479,12 +570,15 @@ class DiffTests(unittest.TestCase):
                 ),
             )
             case_id = conn.execute(
-                "INSERT INTO TestCase (req_id, title, steps, expected_result, test_type, status) "
-                "VALUES ('CR-950', '容量边界', '[]', '拒绝', 'boundary', '已审核')"
+                "INSERT INTO TestCase "
+                "(project_id, req_id, title, steps, expected_result, test_type, status) "
+                "VALUES (?, 'CR-950', '容量边界', '[]', '拒绝', 'boundary', '已审核')",
+                (PROJECT_ID,),
             ).lastrowid
             conn.execute(
-                "INSERT INTO RequirementTestLink (req_id, tc_id, link_source) VALUES ('CR-950', ?, 'AI')",
-                (case_id,),
+                "INSERT INTO RequirementTestLink (project_id, req_id, tc_id, link_source) "
+                "VALUES (?, 'CR-950', ?, 'AI')",
+                (PROJECT_ID, case_id),
             )
             conn.commit()
         finally:

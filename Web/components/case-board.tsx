@@ -105,7 +105,7 @@ export function CaseBoard({ feed, requirements }: { feed: CaseFeed; requirements
   async function review(c: TestCaseItem, status: string) {
     setBusyId(c.tc_id);
     try {
-      await apiFetch(`/api/cases/${c.tc_id}`, {
+      await apiFetch(`/api/projects/1/cases/${c.tc_id}`, {
         method: "PATCH",
         body: JSON.stringify({ status }),
       });

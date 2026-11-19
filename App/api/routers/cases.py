@@ -119,7 +119,7 @@ def generate_cases(
         )
 
     if body.replace:
-        removed = repository.delete_cases_for_requirements(picked)
+        removed = repository.delete_cases_for_requirements(project_id, picked)
         if removed:
             logger.info("已清理 %d 条旧用例", removed)
 
@@ -129,6 +129,7 @@ def generate_cases(
     for case in result.cases:
         try:
             repository.insert_case(
+                project_id=project_id,
                 req_id=case.req_id,
                 title=case.title,
                 preconditions=case.preconditions,
@@ -156,16 +157,20 @@ def generate_cases(
 
 
 @router.patch(
-    "/cases/{tc_id}",
+    "/projects/{project_id}/cases/{tc_id}",
     response_model=TestCaseOut,
     summary="审核 / 驳回 / 撤回用例",
 )
-def update_case(tc_id: int, body: CaseStatusUpdate) -> TestCaseOut:
+def update_case(project_id: int, tc_id: int, body: CaseStatusUpdate) -> TestCaseOut:
     if body.status not in case_service.CASE_STATUS:
         raise HTTPException(
             status_code=422,
             detail=f"非法状态 {body.status}，只支持 {list(case_service.CASE_STATUS)}",
         )
+
+    existing = repository.get_case(tc_id)
+    if existing is None or int(existing.get("project_id") or 0) != project_id:
+        raise HTTPException(status_code=404, detail=f"用例 {tc_id} 不存在")
 
     if not repository.update_case_status(tc_id, body.status):
         raise HTTPException(status_code=404, detail=f"用例 {tc_id} 不存在")

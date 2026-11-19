@@ -15,7 +15,6 @@ export interface ApiDocumentMeta {
   upload_time: string | null;
   paragraphs: number;
   chars: number;
-  file_path: string | null;
 }
 
 export interface ApiParagraph {

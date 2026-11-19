@@ -36,7 +36,7 @@ def parse_txt(file_path: str):
         except UnicodeDecodeError:
             continue
     if text is None:
-        raise ValueError(f"无法识别文件编码: {file_path}")
+        raise ValueError("无法识别文件编码，请另存为 UTF-8 或 GBK")
 
     full_text = []
     para_index = []
@@ -53,7 +53,7 @@ def parse_document(file_path: str):
     if ext not in ALLOWED_EXTS:
         raise ValueError(f"不支持的文件类型: {ext}，仅支持 {ALLOWED_EXTS}")
     if not os.path.exists(file_path):
-        raise FileNotFoundError(file_path)
+        raise FileNotFoundError("文档不存在")
 
     if ext == ".docx":
         return parse_docx(file_path)

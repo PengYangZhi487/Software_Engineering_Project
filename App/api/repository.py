@@ -34,7 +34,6 @@ def _meta_of(row: Any) -> DocumentMeta:
         upload_time=str(row["upload_time"]) if row["upload_time"] else None,
         paragraphs=len(_paragraphs_of(row)),
         chars=len(row["content_text"] or ""),
-        file_path=row["file_path"],
     )
 
 
@@ -176,10 +175,13 @@ def max_requirement_number(project_id: int) -> int:
     return best
 
 
-def get_requirement(req_id: str) -> dict | None:
+def get_requirement(project_id: int, req_id: str) -> dict | None:
     conn = get_connection()
     try:
-        row = conn.execute("SELECT * FROM Requirement WHERE req_id = ?", (req_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM Requirement WHERE project_id = ? AND req_id = ?",
+            (project_id, req_id),
+        ).fetchone()
         if row is None:
             return None
         data = dict(row)
@@ -218,7 +220,7 @@ def list_cases(project_id: int) -> list[dict]:
         rows = conn.execute(
             """
             SELECT tc.* FROM TestCase tc
-            JOIN Requirement r ON r.req_id = tc.req_id
+            JOIN Requirement r ON r.project_id = tc.project_id AND r.req_id = tc.req_id
             WHERE r.project_id = ?
             ORDER BY tc.tc_id
             """,
@@ -240,6 +242,7 @@ def get_case(tc_id: int) -> dict | None:
 
 def insert_case(
     *,
+    project_id: int,
     req_id: str,
     title: str,
     preconditions: list[str],
@@ -252,10 +255,12 @@ def insert_case(
     try:
         cur = conn.execute(
             """
-            INSERT INTO TestCase (req_id, title, preconditions, steps, expected_result, test_type, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO TestCase
+                (project_id, req_id, title, preconditions, steps, expected_result, test_type, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
+                project_id,
                 req_id,
                 title,
                 json.dumps(preconditions, ensure_ascii=False),
@@ -267,8 +272,9 @@ def insert_case(
         )
         tc_id = int(cur.lastrowid)
         conn.execute(
-            "INSERT OR IGNORE INTO RequirementTestLink (req_id, tc_id, link_source) VALUES (?, ?, ?)",
-            (req_id, tc_id, "AI"),
+            "INSERT OR IGNORE INTO RequirementTestLink "
+            "(project_id, req_id, tc_id, link_source) VALUES (?, ?, ?, ?)",
+            (project_id, req_id, tc_id, "AI"),
         )
         conn.commit()
         row = conn.execute("SELECT * FROM TestCase WHERE tc_id = ?", (tc_id,)).fetchone()
@@ -277,19 +283,23 @@ def insert_case(
         conn.close()
 
 
-def delete_cases_for_requirements(req_ids: list[str]) -> int:
+def delete_cases_for_requirements(project_id: int, req_ids: list[str]) -> int:
     if not req_ids:
         return 0
     placeholders = ",".join("?" for _ in req_ids)
     conn = get_connection()
     try:
         rows = conn.execute(
-            f"SELECT tc_id FROM TestCase WHERE req_id IN ({placeholders})", req_ids
+            f"SELECT tc_id FROM TestCase WHERE project_id = ? AND req_id IN ({placeholders})",
+            (project_id, *req_ids),
         ).fetchall()
         tc_ids = [int(r["tc_id"]) for r in rows]
         if tc_ids:
             ph = ",".join("?" for _ in tc_ids)
-            conn.execute(f"DELETE FROM RequirementTestLink WHERE tc_id IN ({ph})", tc_ids)
+            conn.execute(
+                f"DELETE FROM RequirementTestLink WHERE project_id = ? AND tc_id IN ({ph})",
+                (project_id, *tc_ids),
+            )
             conn.execute(f"DELETE FROM TestCase WHERE tc_id IN ({ph})", tc_ids)
             conn.commit()
         return len(tc_ids)
@@ -328,8 +338,7 @@ def trace_requirements(project_id: int) -> list[dict]:
             SELECT l.req_id, tc.tc_id, tc.status
             FROM RequirementTestLink l
             JOIN TestCase tc ON tc.tc_id = l.tc_id
-            JOIN Requirement r ON r.req_id = l.req_id
-            WHERE r.project_id = ?
+            WHERE l.project_id = ?
             """,
             (project_id,),
         ).fetchall()
@@ -357,8 +366,7 @@ def trace_cases(project_id: int) -> list[dict]:
             SELECT tc.tc_id, tc.title, tc.test_type, tc.status, l.req_id
             FROM TestCase tc
             JOIN RequirementTestLink l ON l.tc_id = tc.tc_id
-            JOIN Requirement r ON r.req_id = l.req_id
-            WHERE r.project_id = ?
+            WHERE l.project_id = ?
             ORDER BY tc.tc_id
             """,
             (project_id,),
@@ -379,7 +387,8 @@ def coverage_query(project_id: int) -> tuple[int, int]:
                 WHERE project_id = ? AND status = '已确认') AS confirmed,
               (SELECT COUNT(DISTINCT r.req_id)
                  FROM Requirement r
-                 JOIN RequirementTestLink l ON l.req_id = r.req_id
+                 JOIN RequirementTestLink l
+                   ON l.project_id = r.project_id AND l.req_id = r.req_id
                  JOIN TestCase tc ON tc.tc_id = l.tc_id
                 WHERE r.project_id = ? AND r.status = '已确认' AND tc.status = '已审核') AS covered
             """,
