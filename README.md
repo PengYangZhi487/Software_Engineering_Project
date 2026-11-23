@@ -48,9 +48,9 @@ npm run dev
 一键演示（答辩推荐）：
 
 ```powershell
-.\tools\demo.ps1         # 起后端 + 前端 + 打开浏览器
+.\tools\demo.ps1         # 默认 dev：起后端 + 前端 + 打开浏览器
 .\tools\demo.ps1 -Reset  # 先重建演示数据（会清空所有项目）
-.\tools\demo.ps1 -Dev    # 没有生产构建时用 dev 模式
+.\tools\demo.ps1 -Prod   # 生产模式（缺构建时自动 next build）
 ```
 
 - 接口文档：http://127.0.0.1:8000/docs
