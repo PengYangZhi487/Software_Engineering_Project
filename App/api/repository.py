@@ -341,6 +341,11 @@ def delete_cases_for_requirements(project_id: int, req_ids: list[str]) -> int:
         tc_ids = [int(r["tc_id"]) for r in rows]
         if tc_ids:
             ph = ",".join("?" for _ in tc_ids)
+            # 先删执行记录（外键引用 TestCase），再删关联与用例本身
+            conn.execute(
+                f"DELETE FROM Execution WHERE project_id = ? AND tc_id IN ({ph})",
+                (project_id, *tc_ids),
+            )
             conn.execute(
                 f"DELETE FROM RequirementTestLink WHERE project_id = ? AND tc_id IN ({ph})",
                 (project_id, *tc_ids),
@@ -378,6 +383,72 @@ def update_case_fields(tc_id: int, fields: dict) -> bool:
         )
         conn.commit()
         return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+# ---------- 执行记录 ----------
+
+def _execution_of(row: Any) -> dict:
+    return dict(row)
+
+
+def insert_execution(
+    *,
+    project_id: int,
+    tc_id: int,
+    result: str,
+    actual_result: str | None = None,
+    comments: str | None = None,
+    tester: str | None = None,
+    signature: str | None = None,
+    environment: str | None = None,
+) -> dict:
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            """
+            INSERT INTO Execution
+                (project_id, tc_id, result, actual_result, comments, tester, signature, environment)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (project_id, tc_id, result, actual_result, comments, tester, signature, environment),
+        )
+        exec_id = int(cur.lastrowid)
+        conn.commit()
+        row = conn.execute("SELECT * FROM Execution WHERE exec_id = ?", (exec_id,)).fetchone()
+        return _execution_of(row)
+    finally:
+        conn.close()
+
+
+def list_executions(project_id: int, tc_id: int | None = None) -> list[dict]:
+    conn = get_connection()
+    try:
+        sql = "SELECT * FROM Execution WHERE project_id = ?"
+        params: list = [project_id]
+        if tc_id is not None:
+            sql += " AND tc_id = ?"
+            params.append(tc_id)
+        sql += " ORDER BY exec_id"
+        return [_execution_of(r) for r in conn.execute(sql, params).fetchall()]
+    finally:
+        conn.close()
+
+
+def batch_update_case_status(project_id: int, tc_ids: list[int], status: str) -> int:
+    if not tc_ids:
+        return 0
+    placeholders = ",".join("?" for _ in tc_ids)
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            f"UPDATE TestCase SET status = ?, updated_at = CURRENT_TIMESTAMP "
+            f"WHERE project_id = ? AND tc_id IN ({placeholders})",
+            [status, project_id, *tc_ids],
+        )
+        conn.commit()
+        return cur.rowcount
     finally:
         conn.close()
 

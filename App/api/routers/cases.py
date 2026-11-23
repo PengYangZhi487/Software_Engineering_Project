@@ -19,6 +19,7 @@ from fastapi import APIRouter, Header, HTTPException
 
 from App.api import repository
 from App.api.schemas import (
+    CaseBatchUpdate,
     CaseGenerateRequest,
     CaseGenerateResult,
     CaseListOut,
@@ -155,6 +156,25 @@ def generate_cases(
         req_ids=picked,
         items=[_to_out(r) for r in repository.list_cases(project_id)],
     )
+
+
+@router.patch(
+    "/projects/{project_id}/cases/batch",
+    summary="批量审核 / 驳回 / 撤回用例",
+)
+def batch_update_cases(project_id: int, body: CaseBatchUpdate) -> dict:
+    if repository.get_project(project_id) is None:
+        raise HTTPException(status_code=404, detail=f"项目 {project_id} 不存在")
+    if body.status not in case_service.CASE_STATUS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"非法状态 {body.status}，只支持 {list(case_service.CASE_STATUS)}",
+        )
+
+    updated = repository.batch_update_case_status(project_id, body.tc_ids, body.status)
+    logger.info("批量更新用例 project=%s ids=%d status=%s updated=%d",
+                project_id, len(body.tc_ids), body.status, updated)
+    return {"updated": updated}
 
 
 @router.patch(

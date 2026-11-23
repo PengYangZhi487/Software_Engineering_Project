@@ -32,6 +32,11 @@ def clear_project_requirements(project_id: int) -> int:
     """清空指定项目的需求及其子数据（用于测试重建）。返回删除条数。"""
     conn = get_connection()
     try:
+        conn.execute(
+            "DELETE FROM Execution WHERE project_id = ? AND tc_id IN "
+            "(SELECT tc_id FROM TestCase WHERE project_id = ?)",
+            (project_id, project_id),
+        )
         for table in ("ChangeLog", "RequirementTestLink", "TestCase"):
             conn.execute(f"DELETE FROM {table} WHERE project_id = ?", (project_id,))
         cur = conn.execute("DELETE FROM Requirement WHERE project_id = ?", (project_id,))
@@ -79,6 +84,12 @@ def save_requirements(
             # 重新抽取会替换需求编号，旧需求下的用例与关联必须先清掉，否则外键会拦。
             # 清空与随后的插入放在同一个事务里：任一步失败都整体回滚，不会出现
             # “旧数据已删、新数据只写了一半”的中间态。
+            # Execution 引用 TestCase，必须先删，否则重新抽取会外键失败
+            conn.execute(
+                "DELETE FROM Execution WHERE project_id = ? AND tc_id IN "
+                "(SELECT tc_id FROM TestCase WHERE project_id = ?)",
+                (project_id, project_id),
+            )
             for table in ("ChangeLog", "RequirementTestLink", "TestCase"):
                 conn.execute(f"DELETE FROM {table} WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM Requirement WHERE project_id = ?", (project_id,))

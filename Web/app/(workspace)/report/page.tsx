@@ -16,6 +16,7 @@ export default async function ReportPage() {
 
   const { project, documents, counts, generated_at } = feed.data;
   const exportUrl = `${API_BASE}/api/projects/${project.project_id}/report/export?format=csv`;
+  const exportXlsxUrl = `${API_BASE}/api/projects/${project.project_id}/report/export?format=xlsx`;
   const issueTotal = Math.max(counts.issues, 1);
   const caseTotal = Math.max(counts.cases, 1);
 
@@ -30,8 +31,11 @@ export default async function ReportPage() {
           </div>
         </div>
         <div className="head-actions">
-          <a className="btn primary" href={exportUrl} download>
+          <a className="btn primary" href={exportXlsxUrl} download>
             <Icon name="down" />
+            下载 Excel
+          </a>
+          <a className="btn" href={exportUrl} download>
             下载 CSV
           </a>
         </div>
@@ -173,15 +177,18 @@ export default async function ReportPage() {
         <div className="card">
           <div className="card-h">
             <span className="t">导出说明</span>
-            <span className="m">CSV · UTF-8 BOM</span>
+            <span className="m">Excel · CSV</span>
           </div>
           <div className="card-b" style={{ fontSize: 12, color: "var(--text-2)", lineHeight: 1.9 }}>
-            <div>· 一个文件包含四段：汇总、需求清单、质量问题、测试用例；</div>
+            <div>· Excel 含四个 Sheet：概览、需求清单、测试用例执行表（实际结果 / comments / 签名）、覆盖矩阵；</div>
+            <div>· CSV 仍是汇总、需求清单、质量问题、测试用例四段；</div>
             <div>· 覆盖率口径：至少关联一条已审核用例的已确认需求 / 已确认需求总数；</div>
             <div>· 数字与页面同源（同一个 _build()），Excel 直接打开不乱码；</div>
-            <div>· 更多格式（XLSX / 可编辑报告）留到 P8.1。</div>
             <div style={{ marginTop: 8 }}>
-              <a className="btn sm" href={exportUrl} download>
+              <a className="btn sm" href={exportXlsxUrl} download>
+                下载 Excel
+              </a>
+              <a className="btn sm ghost" href={exportUrl} download style={{ marginLeft: 8 }}>
                 下载 CSV
               </a>
               <Link className="btn sm ghost" href="/trace" style={{ marginLeft: 8 }}>

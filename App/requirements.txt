@@ -9,3 +9,6 @@ pydantic>=2.7
 fastapi>=0.111
 uvicorn[standard]>=0.30
 python-multipart>=0.0.9
+
+# Excel 导出（报告 / 测试用例执行表）
+openpyxl>=3.1

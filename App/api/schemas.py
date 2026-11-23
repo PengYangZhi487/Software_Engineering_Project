@@ -294,3 +294,48 @@ class ReportOut(BaseModel):
     documents: list[DocumentMeta]
     counts: ReportCounts
     generated_at: str
+
+
+# ---------- 执行记录（生成 ≠ 执行 ≠ 通过） ----------
+
+class ExecutionCreate(BaseModel):
+    tc_id: int = Field(description="关联的用例编号")
+    result: str = Field(description="pass / fail / blocked")
+    actual_result: str | None = Field(None, description="实际结果")
+    comments: str | None = Field(None, description="测试 comments")
+    tester: str | None = Field(None, description="执行人")
+    signature: str | None = Field(None, description="测试者签名")
+    environment: str | None = Field(None, description="执行环境，如 Windows 11 / 浏览器版本")
+
+
+class ExecutionOut(BaseModel):
+    exec_id: int
+    project_id: int
+    tc_id: int
+    result: str
+    actual_result: str | None = None
+    comments: str | None = None
+    tester: str | None = None
+    signature: str | None = None
+    environment: str | None = None
+    executed_at: str | None = None
+
+
+class ExecutionListOut(BaseModel):
+    items: list[ExecutionOut]
+    total: int
+
+
+class CaseBatchUpdate(BaseModel):
+    tc_ids: list[int] = Field(min_length=1, description="要批量更新的用例编号")
+    status: str = Field(description="已生成 / 已审核 / 已驳回 / 已执行")
+
+
+# ---------- 全局搜索 ----------
+
+class SearchOut(BaseModel):
+    query: str
+    requirements: list[RequirementOut] = Field(default_factory=list)
+    cases: list[TestCaseOut] = Field(default_factory=list)
+    quality: list[QualityIssue] = Field(default_factory=list)
+    total: int = 0

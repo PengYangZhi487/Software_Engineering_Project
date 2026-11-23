@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ApiError, apiFetch } from "@/lib/api";
-import type { CaseFeed, TestCaseItem } from "@/lib/server";
+import { ApiError, apiFetch, batchUpdateCases, formatApiTime } from "@/lib/api";
+import type { CaseFeed, ExecutionItem, TestCaseItem } from "@/lib/server";
 import type { Requirement } from "@/lib/types";
 import { CaseForm } from "./case-form";
+import { ExecutionForm } from "./execution-form";
 import { Icon } from "./icon";
 
 type StatusFilter = "all" | "已生成" | "已审核" | "已驳回" | "已执行";
@@ -19,6 +20,8 @@ const STATUS_CHIP: Record<string, string> = {
   已驳回: "danger",
   已执行: "accent",
 };
+const RESULT_LABEL: Record<string, string> = { pass: "通过", fail: "失败", blocked: "阻塞" };
+const RESULT_CHIP: Record<string, string> = { pass: "ok", fail: "danger", blocked: "warn" };
 
 const FILTERS: { id: StatusFilter; label: string }[] = [
   { id: "all", label: "全部" },
@@ -28,7 +31,15 @@ const FILTERS: { id: StatusFilter; label: string }[] = [
   { id: "已执行", label: "已执行" },
 ];
 
-export function CaseBoard({ feed, requirements }: { feed: CaseFeed; requirements: Requirement[] }) {
+export function CaseBoard({
+  feed,
+  requirements,
+  executions,
+}: {
+  feed: CaseFeed;
+  requirements: Requirement[];
+  executions: ExecutionItem[];
+}) {
   const router = useRouter();
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [genOpen, setGenOpen] = useState(false);
@@ -39,6 +50,10 @@ export function CaseBoard({ feed, requirements }: { feed: CaseFeed; requirements
   const [busyId, setBusyId] = useState<number | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<TestCaseItem | null>(null);
+  const [selectedCases, setSelectedCases] = useState<Set<number>>(new Set());
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [execOpen, setExecOpen] = useState(false);
+  const [execTarget, setExecTarget] = useState<TestCaseItem | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const confirmed = useMemo(() => requirements.filter((r) => r.status === "confirmed"), [requirements]);
@@ -60,6 +75,15 @@ export function CaseBoard({ feed, requirements }: { feed: CaseFeed; requirements
     [feed.items, filter],
   );
 
+  // 执行记录按 tc_id 取最新一条（接口按 exec_id 升序返回）
+  const latestByTc = useMemo(() => {
+    const map = new Map<number, ExecutionItem>();
+    for (const item of executions) map.set(item.tc_id, item);
+    return map;
+  }, [executions]);
+
+  const allChecked = rows.length > 0 && rows.every((c) => selectedCases.has(c.tc_id));
+
   useEffect(() => {
     if (!generating) {
       if (timer.current) clearInterval(timer.current);
@@ -79,6 +103,19 @@ export function CaseBoard({ feed, requirements }: { feed: CaseFeed; requirements
       else next.add(id);
       return next;
     });
+  }
+
+  function toggleCase(tcId: number) {
+    setSelectedCases((prev) => {
+      const next = new Set(prev);
+      if (next.has(tcId)) next.delete(tcId);
+      else next.add(tcId);
+      return next;
+    });
+  }
+
+  function toggleAllCases() {
+    setSelectedCases(allChecked ? new Set() : new Set(rows.map((c) => c.tc_id)));
   }
 
   async function generate() {
@@ -127,6 +164,21 @@ export function CaseBoard({ feed, requirements }: { feed: CaseFeed; requirements
     }
   }
 
+  async function batchReview(status: string) {
+    if (!selectedCases.size) return;
+    setBatchBusy(true);
+    try {
+      const updated = await batchUpdateCases(1, [...selectedCases], status);
+      setMessage({ kind: "ok", text: `已批量更新 ${updated} 条用例` });
+      setSelectedCases(new Set());
+      router.refresh();
+    } catch (err) {
+      setMessage({ kind: "error", text: err instanceof Error ? err.message : "批量更新失败" });
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+
   return (
     <section className="view active">
       <div className="view-head">
@@ -141,7 +193,7 @@ export function CaseBoard({ feed, requirements }: { feed: CaseFeed; requirements
             ) : null}
           </h1>
           <div className="page-sub">
-            按已确认需求批量生成正常 / 异常 / 边界候选用例，逐条审核。生成 ≠ 通过。
+            按已确认需求批量生成正常 / 异常 / 边界候选用例，逐条审核、记录执行。生成 ≠ 通过。
           </div>
         </div>
         <div className="head-actions">
@@ -186,12 +238,12 @@ export function CaseBoard({ feed, requirements }: { feed: CaseFeed; requirements
           <div className="d">可用于覆盖率统计</div>
         </div>
         <div className="metric">
-          <div className="k">已驳回</div>
+          <div className="k">执行记录</div>
           <div className="v">
-            {counts["已驳回"]}
-            <small>条</small>
+            {executions.length}
+            <small>次</small>
           </div>
-          <div className="d">保留可追溯</div>
+          <div className="d">实际执行结果（含 comments / 签名）</div>
         </div>
       </div>
 
@@ -283,8 +335,34 @@ export function CaseBoard({ feed, requirements }: { feed: CaseFeed; requirements
               ))}
             </div>
             <div className="sp" />
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-2)" }}>
+              <input className="cb" type="checkbox" checked={allChecked} onChange={toggleAllCases} />
+              全选当前列表
+            </label>
             <span className="st idle">生成只提候选，审核由人确认</span>
           </div>
+
+          {selectedCases.size > 0 ? (
+            <div className="bulkbar">
+              <b>已选 {selectedCases.size} 条</b>
+              <span style={{ opacity: 0.6 }}>·</span>
+              <button className="btn sm" type="button" disabled={batchBusy} onClick={() => batchReview("已审核")}>
+                批量通过
+              </button>
+              <button
+                className="btn sm danger"
+                type="button"
+                disabled={batchBusy}
+                onClick={() => batchReview("已驳回")}
+              >
+                批量驳回
+              </button>
+              <div className="sp" />
+              <button className="btn sm ghost" type="button" onClick={() => setSelectedCases(new Set())}>
+                取消选择
+              </button>
+            </div>
+          ) : null}
 
           {rows.length === 0 ? (
             <div className="card">
@@ -309,96 +387,142 @@ export function CaseBoard({ feed, requirements }: { feed: CaseFeed; requirements
             </div>
           ) : (
             <div>
-              {rows.map((c) => (
-                <article className="case-card" key={c.tc_id}>
-                  <div className="case-head">
-                    <span className="chip mono">TC-{String(c.tc_id).padStart(3, "0")}</span>
-                    <span className={`chip ${TYPE_CHIP[c.test_type] ?? ""}`}>
-                      {TYPE_LABEL[c.test_type] ?? c.test_type}
-                    </span>
-                    <span className="case-title">{c.title}</span>
-                    <span className={`st ${STATUS_CHIP[c.status] ?? "idle"}`}>
-                      <span className="dot" />
-                      {c.status}
-                    </span>
-                  </div>
+              {rows.map((c) => {
+                const last = latestByTc.get(c.tc_id);
+                return (
+                  <article
+                    className="case-card"
+                    key={c.tc_id}
+                    style={selectedCases.has(c.tc_id) ? { borderColor: "var(--accent)" } : undefined}
+                  >
+                    <div className="case-head">
+                      <input
+                        className="cb"
+                        type="checkbox"
+                        aria-label={`选择 TC-${c.tc_id}`}
+                        checked={selectedCases.has(c.tc_id)}
+                        onChange={() => toggleCase(c.tc_id)}
+                      />
+                      <span className="chip mono">TC-{String(c.tc_id).padStart(3, "0")}</span>
+                      <span className={`chip ${TYPE_CHIP[c.test_type] ?? ""}`}>
+                        {TYPE_LABEL[c.test_type] ?? c.test_type}
+                      </span>
+                      <span className="case-title">{c.title}</span>
+                      <span className={`st ${STATUS_CHIP[c.status] ?? "idle"}`}>
+                        <span className="dot" />
+                        {c.status}
+                      </span>
+                    </div>
 
-                  <div className="case-grid">
-                    <div>
-                      <div className="lb">前置条件</div>
-                      <ul>
-                        {c.preconditions.length ? (
-                          c.preconditions.map((p, i) => <li key={i}>{p}</li>)
-                        ) : (
-                          <li style={{ listStyle: "none", color: "var(--text-3)" }}>无</li>
-                        )}
-                      </ul>
+                    <div className="case-grid">
+                      <div>
+                        <div className="lb">前置条件</div>
+                        <ul>
+                          {c.preconditions.length ? (
+                            c.preconditions.map((p, i) => <li key={i}>{p}</li>)
+                          ) : (
+                            <li style={{ listStyle: "none", color: "var(--text-3)" }}>无</li>
+                          )}
+                        </ul>
+                      </div>
+                      <div>
+                        <div className="lb">操作步骤</div>
+                        <ol>
+                          {c.steps.map((s, i) => (
+                            <li key={i}>{s}</li>
+                          ))}
+                        </ol>
+                      </div>
+                      <div>
+                        <div className="lb">预期结果</div>
+                        <p>{c.expected_result}</p>
+                      </div>
                     </div>
-                    <div>
-                      <div className="lb">操作步骤</div>
-                      <ol>
-                        {c.steps.map((s, i) => (
-                          <li key={i}>{s}</li>
-                        ))}
-                      </ol>
-                    </div>
-                    <div>
-                      <div className="lb">预期结果</div>
-                      <p>{c.expected_result}</p>
-                    </div>
-                  </div>
 
-                  <div className="case-foot">
-                    {c.req_id ? (
-                      <Link className="chip accent" href={`/requirements?open=${c.req_id}`}>
-                        {c.req_id}
-                      </Link>
-                    ) : null}
-                    <div className="sp" />
-                    <button
-                      className="btn sm ghost"
-                      type="button"
-                      onClick={() => {
-                        setEditing(c);
-                        setFormOpen(true);
-                      }}
-                    >
-                      <Icon name="doc" size={13} />
-                      编辑
-                    </button>
-                    <button
-                      className="btn sm"
-                      type="button"
-                      disabled={busyId === c.tc_id || c.status === "已审核"}
-                      onClick={() => review(c, "已审核")}
-                    >
-                      审核通过
-                    </button>
-                    <button
-                      className="btn sm danger"
-                      type="button"
-                      disabled={busyId === c.tc_id || c.status === "已驳回"}
-                      onClick={() => review(c, "已驳回")}
-                    >
-                      驳回
-                    </button>
-                    {c.status !== "已生成" ? (
+                    <div className="case-foot">
+                      {c.req_id ? (
+                        <Link className="chip accent" href={`/requirements?open=${c.req_id}`}>
+                          {c.req_id}
+                        </Link>
+                      ) : null}
+                      {last ? (
+                        <span
+                          className={`st ${RESULT_CHIP[last.result] ?? "idle"}`}
+                          title={`${last.tester ? `执行人 ${last.tester}` : "未填执行人"}${last.comments ? ` · ${last.comments}` : ""}`}
+                        >
+                          <span className="dot" />
+                          最近执行：{RESULT_LABEL[last.result] ?? last.result}
+                          {last.executed_at ? ` · ${formatApiTime(last.executed_at).slice(0, 10)}` : ""}
+                        </span>
+                      ) : (
+                        <span className="st idle">未执行</span>
+                      )}
+                      <div className="sp" />
                       <button
                         className="btn sm ghost"
                         type="button"
                         disabled={busyId === c.tc_id}
-                        onClick={() => review(c, "已生成")}
+                        onClick={() => {
+                          setExecTarget(c);
+                          setExecOpen(true);
+                        }}
                       >
-                        撤回
+                        <Icon name="flask" size={13} />
+                        记录执行
                       </button>
-                    ) : null}
-                  </div>
-                </article>
-              ))}
+                      <button
+                        className="btn sm ghost"
+                        type="button"
+                        onClick={() => {
+                          setEditing(c);
+                          setFormOpen(true);
+                        }}
+                      >
+                        <Icon name="doc" size={13} />
+                        编辑
+                      </button>
+                      <button
+                        className="btn sm"
+                        type="button"
+                        disabled={busyId === c.tc_id || c.status === "已审核"}
+                        onClick={() => review(c, "已审核")}
+                      >
+                        审核通过
+                      </button>
+                      <button
+                        className="btn sm danger"
+                        type="button"
+                        disabled={busyId === c.tc_id || c.status === "已驳回"}
+                        onClick={() => review(c, "已驳回")}
+                      >
+                        驳回
+                      </button>
+                      {c.status !== "已生成" ? (
+                        <button
+                          className="btn sm ghost"
+                          type="button"
+                          disabled={busyId === c.tc_id}
+                          onClick={() => review(c, "已生成")}
+                        >
+                          撤回
+                        </button>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </>
       )}
+
+      <ExecutionForm
+        open={execOpen}
+        projectId={1}
+        testCase={execTarget}
+        onClose={() => setExecOpen(false)}
+        onSaved={() => router.refresh()}
+      />
 
       <CaseForm
         open={formOpen}

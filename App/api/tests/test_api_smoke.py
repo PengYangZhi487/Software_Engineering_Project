@@ -33,10 +33,13 @@ from starlette.datastructures import UploadFile  # noqa: E402
 from App.api import repository  # noqa: E402
 from App.api.main import app  # noqa: E402
 from App.api.routers.cases import (  # noqa: E402
+    batch_update_cases,
     generate_cases as api_generate_cases,
     list_cases as api_list_cases,
     update_case,
 )
+from App.api.routers.executions import create_execution, list_executions  # noqa: E402
+from App.api.routers.search import search as api_search  # noqa: E402
 from App.api.routers.documents import upload_document  # noqa: E402
 from App.api.routers.diff import document_diff  # noqa: E402
 from App.api.routers.quality import decide_issue, list_issues  # noqa: E402
@@ -49,9 +52,11 @@ from App.api.routers.requirements import (  # noqa: E402
     update_requirement,
 )
 from App.api.schemas import (  # noqa: E402
+    CaseBatchUpdate,
     CaseGenerateRequest,
     CaseStatusUpdate,
     CaseUpdate,
+    ExecutionCreate,
     QualityDecisionUpdate,
     RequirementCreate,
     RequirementStatusUpdate,
@@ -886,8 +891,208 @@ class ReportTests(unittest.TestCase):
         self.assertIn(f"# 需求总数,{report.counts.requirements}", body)
 
         with self.assertRaises(HTTPException) as ctx:
-            export_report(PROJECT_ID, "xlsx")
+            export_report(PROJECT_ID, "pdf")
         self.assertEqual(ctx.exception.status_code, 400)
+
+        xlsx = export_report(PROJECT_ID, "xlsx")
+        self.assertIn("spreadsheetml", xlsx.media_type)
+
+
+def _new_project(name: str) -> int:
+    conn = get_connection()
+    try:
+        cur = conn.execute("INSERT INTO Project (project_name) VALUES (?)", (name,))
+        conn.commit()
+        return int(cur.lastrowid)
+    finally:
+        conn.close()
+
+
+def _drop_project(pid: int) -> None:
+    if not pid:
+        return
+    conn = get_connection()
+    try:
+        for table in ("Execution", "ChangeLog", "RequirementTestLink", "TestCase", "QualityDecision"):
+            conn.execute(f"DELETE FROM {table} WHERE project_id = ?", (pid,))
+        conn.execute("DELETE FROM Requirement WHERE project_id = ?", (pid,))
+        conn.execute("DELETE FROM Document WHERE project_id = ?", (pid,))
+        conn.execute("DELETE FROM Project WHERE project_id = ?", (pid,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _seed_project(pid: int) -> dict:
+    """给独立测试项目建一条需求 + 一条用例，返回用例。"""
+    req_service.save_requirements(
+        pid,
+        None,
+        [
+            {
+                "req_id": "CR-001",
+                "title": "课程容量",
+                "description": "课程默认容量 50 人，系统响应快速。",
+                "acceptance_criteria": ["第 51 人拒绝"],
+            }
+        ],
+    )
+    return repository.insert_case(
+        project_id=pid,
+        req_id="CR-001",
+        title="容量边界 50 人",
+        preconditions=["课程已满 50 人"],
+        steps=["学生选课"],
+        expected_result="拒绝并提示容量已满",
+        test_type="boundary",
+    )
+
+
+class ExecutionTests(unittest.TestCase):
+    """执行记录：生成 ≠ 执行 ≠ 通过。"""
+
+    def setUp(self) -> None:
+        self.pid = _new_project("执行记录测试")
+        self.case = _seed_project(self.pid)
+
+    def tearDown(self) -> None:
+        _drop_project(self.pid)
+
+    def test_create_and_list(self) -> None:
+        out = create_execution(
+            self.pid,
+            ExecutionCreate(
+                tc_id=self.case["tc_id"],
+                result="pass",
+                actual_result="第 51 人被拒绝，提示容量已满",
+                comments="边界值符合预期",
+                tester="张三",
+                signature="ZS",
+                environment="Windows 11 / Chrome 141",
+            ),
+        )
+        self.assertEqual(out.result, "pass")
+        self.assertEqual(out.signature, "ZS")
+
+        listing = list_executions(self.pid)
+        self.assertEqual(listing.total, 1)
+        self.assertEqual(listing.items[0].comments, "边界值符合预期")
+
+        # 执行不改写用例审核状态（覆盖率口径依赖「已审核」）
+        case = repository.get_case(self.case["tc_id"])
+        self.assertEqual(case["status"], "已生成")
+
+    def test_rejects_bad_result_and_foreign_case(self) -> None:
+        with self.assertRaises(HTTPException) as ctx:
+            create_execution(self.pid, ExecutionCreate(tc_id=self.case["tc_id"], result="ok"))
+        self.assertEqual(ctx.exception.status_code, 422)
+
+        other = _new_project("另一个项目")
+        try:
+            with self.assertRaises(HTTPException) as ctx2:
+                create_execution(other, ExecutionCreate(tc_id=self.case["tc_id"], result="pass"))
+            self.assertEqual(ctx2.exception.status_code, 404)
+        finally:
+            _drop_project(other)
+
+
+class CaseBatchTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.pid = _new_project("批量审核测试")
+        _seed_project(self.pid)
+
+    def tearDown(self) -> None:
+        _drop_project(self.pid)
+
+    def test_batch_review_and_reject(self) -> None:
+        tc_id = repository.list_cases(self.pid)[0]["tc_id"]
+        out = batch_update_cases(self.pid, CaseBatchUpdate(tc_ids=[tc_id], status="已审核"))
+        self.assertEqual(out["updated"], 1)
+        self.assertEqual(repository.get_case(tc_id)["status"], "已审核")
+
+        out2 = batch_update_cases(self.pid, CaseBatchUpdate(tc_ids=[tc_id], status="已驳回"))
+        self.assertEqual(out2["updated"], 1)
+        self.assertEqual(repository.get_case(tc_id)["status"], "已驳回")
+
+    def test_rejects_illegal_status(self) -> None:
+        tc_id = repository.list_cases(self.pid)[0]["tc_id"]
+        with self.assertRaises(HTTPException) as ctx:
+            batch_update_cases(self.pid, CaseBatchUpdate(tc_ids=[tc_id], status="通过"))
+        self.assertEqual(ctx.exception.status_code, 422)
+
+
+class SearchTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.pid = _new_project("搜索测试")
+        _seed_project(self.pid)
+
+    def tearDown(self) -> None:
+        _drop_project(self.pid)
+
+    def test_search_hits_requirements_cases_and_quality(self) -> None:
+        res = api_search(self.pid, "容量")
+        self.assertGreaterEqual(res.total, 1)
+        self.assertEqual([r.req_id for r in res.requirements], ["CR-001"])
+        self.assertEqual(res.cases[0].title, "容量边界 50 人")
+
+        # 「快速」是模糊词：需求命中，质量扫描也应命中
+        res2 = api_search(self.pid, "快速")
+        self.assertTrue(res2.requirements)
+        self.assertTrue(res2.quality)
+
+    def test_search_requires_project(self) -> None:
+        with self.assertRaises(HTTPException) as ctx:
+            api_search(999999, "容量")
+        self.assertEqual(ctx.exception.status_code, 404)
+
+
+class XlsxExportTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.pid = _new_project("Excel 导出测试")
+        self.case = _seed_project(self.pid)
+        create_execution(
+            self.pid,
+            ExecutionCreate(
+                tc_id=self.case["tc_id"],
+                result="fail",
+                actual_result="第 51 人仍可提交",
+                comments="容量校验未生效",
+                tester="李四",
+                signature="LS",
+            ),
+        )
+
+    def tearDown(self) -> None:
+        _drop_project(self.pid)
+
+    def test_export_xlsx_sheets_and_fields(self) -> None:
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        resp = export_report(self.pid, "xlsx")
+        self.assertIn("spreadsheetml", resp.media_type)
+        wb = load_workbook(BytesIO(resp.body))
+
+        self.assertEqual(wb.sheetnames, ["概览", "需求清单", "测试用例执行表", "覆盖矩阵"])
+
+        exec_rows = list(wb["测试用例执行表"].values)
+        self.assertEqual(exec_rows[0][8], "执行结果")
+        self.assertEqual(exec_rows[0][10], "测试comments")
+        self.assertEqual(exec_rows[1][8], "失败")
+        self.assertEqual(exec_rows[1][9], "第 51 人仍可提交")
+        self.assertEqual(exec_rows[1][11], "李四")
+        self.assertEqual(exec_rows[1][12], "LS")
+
+        req_rows = list(wb["需求清单"].values)
+        self.assertEqual(req_rows[0][0], "需求编号")
+        self.assertEqual(req_rows[1][0], "CR-001")
+
+    def test_csv_still_works(self) -> None:
+        resp = export_report(self.pid, "csv")
+        body = resp.body.decode("utf-8")
+        self.assertTrue(body.startswith("\ufeff"))
+        self.assertIn("需求清单", body)
 
 
 if __name__ == "__main__":

@@ -159,6 +159,24 @@ def init_db():
         )
     ''')
 
+    # 9. 建表 Execution（用例执行记录：生成 ≠ 执行 ≠ 通过，执行结果单独记）
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Execution (
+            exec_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            tc_id INTEGER NOT NULL,
+            result TEXT NOT NULL,
+            actual_result TEXT,
+            comments TEXT,
+            tester TEXT,
+            signature TEXT,
+            environment TEXT,
+            executed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(project_id) REFERENCES Project(project_id),
+            FOREIGN KEY(tc_id) REFERENCES TestCase(tc_id)
+        )
+    ''')
+
     # === 新增：迁移已有表结构 ===
     _migrate_requirement_add_req_type(conn)
     migrate_requirement_pk(conn)

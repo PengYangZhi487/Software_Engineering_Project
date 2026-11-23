@@ -215,3 +215,42 @@ export async function decideQualityIssue(
     body: JSON.stringify({ decision, note }),
   });
 }
+
+/* ---------- 执行记录 ---------- */
+
+export interface ExecutionPayload {
+  tc_id: number;
+  result: "pass" | "fail" | "blocked";
+  actual_result?: string;
+  comments?: string;
+  tester?: string;
+  signature?: string;
+  environment?: string;
+}
+
+export async function createExecution(projectId: number, payload: ExecutionPayload): Promise<void> {
+  await apiFetch(`/api/projects/${projectId}/executions`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+/* ---------- 用例批量审核 ---------- */
+
+export async function batchUpdateCases(
+  projectId: number,
+  tcIds: number[],
+  status: string,
+): Promise<number> {
+  const res = await apiFetch(`/api/projects/${projectId}/cases/batch`, {
+    method: "PATCH",
+    body: JSON.stringify({ tc_ids: tcIds, status }),
+  });
+  const data = (await res.json()) as { updated?: number };
+  return data.updated ?? 0;
+}
+
+/** 报告导出地址（浏览器直接下载，不经过 fetch）。 */
+export function exportReportUrl(projectId: number, format: "csv" | "xlsx" = "xlsx"): string {
+  return `${API_BASE}/api/projects/${projectId}/report/export?format=${format}`;
+}

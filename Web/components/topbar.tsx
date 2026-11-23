@@ -53,7 +53,7 @@ export function Topbar() {
   function submit(e: FormEvent) {
     e.preventDefault();
     const value = q.trim();
-    router.push(value ? `/requirements?q=${encodeURIComponent(value)}` : "/requirements");
+    router.push(value ? `/search?q=${encodeURIComponent(value)}` : "/search");
   }
 
   return (
@@ -68,7 +68,7 @@ export function Topbar() {
           ref={inputRef}
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="搜索需求编号、标题…"
+          placeholder="搜索需求 / 用例 / 问题…"
           aria-label="搜索需求"
           autoComplete="off"
         />

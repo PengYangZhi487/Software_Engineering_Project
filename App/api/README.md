@@ -57,11 +57,15 @@ $env:DEEPSEEK_API_KEY = "sk-..."
 | **POST** | `/api/projects/{project_id}/cases/generate` | **按已确认需求生成用例**（body：`req_ids`、`replace`） |
 | GET | `/api/projects/{project_id}/cases` | 用例列表（按状态 / 类型统计） |
 | **PATCH** | `/api/projects/{project_id}/cases/{tc_id}` | **编辑 / 审核 / 驳回 / 标记已执行**（部分字段） |
+| **PATCH** | `/api/projects/{project_id}/cases/batch` | **批量审核 / 驳回 / 撤回**（body：`tc_ids`、`status`） |
+| **GET** | `/api/projects/{project_id}/executions` | **执行记录列表**（可按 `?tc_id=` 过滤） |
+| **POST** | `/api/projects/{project_id}/executions` | **登记一次执行**（`result` pass/fail/blocked + 实际结果 / comments / 执行人 / 签名 / 环境） |
 | **GET** | `/api/projects/{project_id}/trace` | **追踪矩阵**（需求 × 用例 + 汇总） |
 | **GET** | `/api/projects/{project_id}/trace/coverage` | **覆盖率纯 SQL 复算**（并与矩阵口径交叉校验） |
 | **GET** | `/api/projects/{project_id}/document-diff` | **两版文档比对 + 受影响用例**（`?base_doc_id=`、`?target_doc_id=`） |
 | **GET** | `/api/projects/{project_id}/report` | **质量报告汇总**（需求 / 问题 / 用例 / 覆盖率） |
-| **GET** | `/api/projects/{project_id}/report/export` | **导出 CSV**（UTF-8 BOM，`?format=csv`） |
+| **GET** | `/api/projects/{project_id}/report/export` | **导出报告**（`?format=csv` 或 `xlsx`；xlsx 含测试用例执行表） |
+| **GET** | `/api/projects/{project_id}/search` | **全局搜索**（`?q=`，一次返回需求 / 用例 / 质量问题） |
 
 ### 上传
 
@@ -185,13 +189,16 @@ curl.exe "http://127.0.0.1:8000/api/projects/1/document-diff"
 
 ```powershell
 curl.exe "http://127.0.0.1:8000/api/projects/1/report"
+# CSV：汇总 / 需求清单 / 质量问题 / 测试用例 四段
 curl.exe -o report.csv "http://127.0.0.1:8000/api/projects/1/report/export?format=csv"
+# XLSX：概览 / 需求清单 / 测试用例执行表 / 覆盖矩阵 四个 Sheet
+curl.exe -o report.xlsx "http://127.0.0.1:8000/api/projects/1/report/export?format=xlsx"
 ```
 
 - `/report` 返回项目信息、文档列表、需求/问题/用例/覆盖率汇总；
-- `/report/export` 返回一个 CSV（UTF-8 BOM），包含四段：**汇总 / 需求清单 / 质量问题 / 测试用例**；
-- 页面与 CSV 都由同一个 `_build()` 生成，覆盖率复用追踪模块口径 —— 导出数字和页面一致，这也是 G4 的要求；
-- 目前只支持 CSV，XLSX 留到 P8.1。
+- `/report/export` 支持 `csv` 与 `xlsx`；
+- `xlsx` 的「测试用例执行表」按执行记录展开：用例、步骤、预期结果、执行结果、实际结果、测试 comments、执行人、测试者签名、执行环境、执行时间；
+- 页面、CSV、XLSX 都由同一个 `_build()` 生成，覆盖率复用追踪模块口径 —— 导出数字和页面一致（G4）。
 
 ## 设计约定
 

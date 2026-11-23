@@ -19,6 +19,7 @@ from App.api.routers.trace import get_trace
 from App.api.schemas import DocumentMeta, ReportCounts, ReportOut, ReportProject
 from App.services import req_service
 from App.services.quality_scan import scan_requirements
+from App.services.xlsx_export import XLSX_MIME, build_report_workbook
 
 router = APIRouter(prefix="/api", tags=["report"])
 
@@ -165,16 +166,26 @@ def _csv_rows(data: dict) -> list[list[str]]:
 
 @router.get(
     "/projects/{project_id}/report/export",
-    summary="导出质量报告 CSV",
+    summary="导出质量报告 CSV / XLSX（XLSX 含测试用例执行表）",
 )
 def export_report(
     project_id: int,
-    fmt: str = Query("csv", alias="format", description="目前只支持 csv"),
+    fmt: str = Query("csv", alias="format", description="csv 或 xlsx"),
 ) -> Response:
-    if fmt.lower() != "csv":
-        raise HTTPException(status_code=400, detail="目前只支持 CSV 导出")
+    fmt = fmt.lower()
+    if fmt not in ("csv", "xlsx"):
+        raise HTTPException(status_code=400, detail="只支持 csv 或 xlsx 导出")
 
     data = _build(project_id)
+
+    if fmt == "xlsx":
+        content = build_report_workbook(data, repository.list_executions(project_id))
+        filename = f"ratgp-report-project{project_id}.xlsx"
+        return Response(
+            content=content,
+            media_type=XLSX_MIME,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\r\n")

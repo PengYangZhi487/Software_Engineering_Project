@@ -12,11 +12,13 @@ from App.api.routers import (
     cases,
     diff,
     documents,
+    executions,
     health,
     projects,
     quality,
     report,
     requirements,
+    search,
     trace,
 )
 from App.dao.db import init_db
@@ -57,6 +59,8 @@ app.include_router(documents.router)
 app.include_router(requirements.router)
 app.include_router(quality.router)
 app.include_router(cases.router)
+app.include_router(executions.router)
+app.include_router(search.router)
 app.include_router(trace.router)
 app.include_router(diff.router)
 app.include_router(report.router)

@@ -410,3 +410,80 @@ export async function loadReport(projectId = 1): Promise<ReportFeed> {
     };
   }
 }
+
+/* ---------- 执行记录（生成 ≠ 执行 ≠ 通过） ---------- */
+
+export interface ExecutionItem {
+  exec_id: number;
+  project_id: number;
+  tc_id: number;
+  result: "pass" | "fail" | "blocked" | string;
+  actual_result: string | null;
+  comments: string | null;
+  tester: string | null;
+  signature: string | null;
+  environment: string | null;
+  executed_at: string | null;
+}
+
+export interface ExecutionFeed {
+  items: ExecutionItem[];
+  total: number;
+}
+
+export async function loadExecutions(projectId = 1): Promise<ExecutionFeed> {
+  try {
+    const data = await getJson<ExecutionFeed>(`/api/projects/${projectId}/executions`);
+    return { items: data.items ?? [], total: data.total ?? 0 };
+  } catch {
+    return { items: [], total: 0 };
+  }
+}
+
+/* ---------- 全局搜索 ---------- */
+
+interface ApiSearch {
+  query: string;
+  requirements: ApiRequirement[];
+  cases: TestCaseItem[];
+  quality: QualityIssue[];
+  total: number;
+}
+
+export interface SearchFeed {
+  query: string;
+  requirements: Requirement[];
+  cases: TestCaseItem[];
+  quality: QualityIssue[];
+  total: number;
+  source: DataSource;
+  error: string | null;
+}
+
+export async function loadSearch(projectId: number, keyword: string): Promise<SearchFeed> {
+  try {
+    const data = await getJson<ApiSearch>(
+      `/api/projects/${projectId}/search?q=${encodeURIComponent(keyword)}`,
+      8000,
+    );
+    return {
+      query: data.query,
+      requirements: data.requirements.map(toRequirement),
+      cases: data.cases,
+      quality: data.quality,
+      total: data.total,
+      source: "api",
+      error: null,
+    };
+  } catch (err) {
+    return {
+      query: keyword,
+      requirements: [],
+      cases: [],
+      quality: [],
+      total: 0,
+      source: "mock",
+      error: err instanceof Error ? err.message : "无法连接后端",
+    };
+  }
+}
