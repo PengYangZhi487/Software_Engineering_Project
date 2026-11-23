@@ -17,13 +17,14 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     loadDiff(1),
   ]);
 
+  const offline = feed.source === "mock";
   const counts = {
-    documents: String(documents),
-    requirements: String(feed.counts.total),
-    issues: String(quality.total),
-    cases: String(trace.summary.cases),
-    coverage: trace.summary.confirmed ? `${trace.summary.coverage_pct}%` : "—",
-    changes: diff.available ? String(diff.data?.summary.changed ?? 0) : "—",
+    documents: offline ? "—" : String(documents),
+    requirements: offline ? "—" : String(feed.counts.total),
+    issues: offline ? "—" : String(quality.total),
+    cases: offline ? "—" : String(trace.summary.cases),
+    coverage: offline ? "—" : trace.summary.confirmed ? `${trace.summary.coverage_pct}%` : "—",
+    changes: offline ? "—" : diff.available ? String(diff.data?.summary.changed ?? 0) : "—",
   };
 
   return (

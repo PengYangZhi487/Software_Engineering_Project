@@ -1,4 +1,5 @@
 import { ReqExplorer } from "@/components/req-explorer";
+import { Offline } from "@/components/offline";
 import { loadRequirements } from "@/lib/server";
 
 export default async function RequirementsPage({
@@ -8,6 +9,7 @@ export default async function RequirementsPage({
 }) {
   const { q, open } = await searchParams;
   const feed = await loadRequirements(1);
+  if (feed.source === "mock") return <Offline message={feed.error} />;
 
   return (
     <ReqExplorer

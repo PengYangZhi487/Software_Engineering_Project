@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@/components/icon";
+import { Offline } from "@/components/offline";
 import { API_BASE } from "@/lib/api";
 import { loadReport } from "@/lib/server";
 
@@ -11,34 +12,7 @@ function pct(part: number, total: number) {
 
 export default async function ReportPage() {
   const feed = await loadReport(1);
-
-  if (!feed.data) {
-    return (
-      <section className="view active">
-        <div className="view-head">
-          <div>
-            <div className="eyebrow">STEP 08 · 报告</div>
-            <h1 className="page-title">质量报告</h1>
-            <div className="page-sub">需求、问题、用例与覆盖率的汇总，可导出 CSV。</div>
-          </div>
-        </div>
-        <div className="card">
-          <div className="empty">
-            <div className="ic">
-              <Icon name="alert" size={20} />
-            </div>
-            <h3>后端没有连上</h3>
-            <p>{feed.error ?? "启动 FastAPI（8000）后刷新本页。"}</p>
-            <div className="row">
-              <a className="btn" href="/report">
-                重试
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
+  if (!feed.data) return <Offline message={feed.error} />;
 
   const { project, documents, counts, generated_at } = feed.data;
   const exportUrl = `${API_BASE}/api/projects/${project.project_id}/report/export?format=csv`;

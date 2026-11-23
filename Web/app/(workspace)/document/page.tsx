@@ -1,4 +1,5 @@
 import { DocWorkspace } from "@/components/doc-workspace";
+import { Offline } from "@/components/offline";
 import {
   getParagraphs,
   listDocuments,
@@ -29,12 +30,13 @@ export default async function DocumentPage({
   }
 
   const feed = await loadRequirements(1);
+  if (apiError) return <Offline message={apiError} />;
 
   return (
     <DocWorkspace
       doc={doc}
       paragraphs={paragraphs}
-      apiError={apiError}
+      apiError={null}
       requirements={feed.items}
       initialUploadOpen={upload === "1"}
       initialExtractOpen={extract === "1"}

@@ -3,7 +3,6 @@
  * 只在 Server Component 里调用。
  */
 import { API_BASE } from "./api";
-import { requirements as mockRequirements } from "./data";
 import type { DataSource, Requirement, Risk } from "./types";
 
 interface ApiRequirement {
@@ -90,11 +89,12 @@ export async function loadRequirements(projectId = 1): Promise<RequirementFeed> 
     const items = data.items.map(toRequirement);
     return { items, source: "api", error: null, counts: countRequirements(items) };
   } catch (err) {
+    // 连不上时返回空，不用 mock 伪装；页面统一渲染 <Offline />
     return {
-      items: mockRequirements,
+      items: [],
       source: "mock",
       error: err instanceof Error ? err.message : "无法连接后端",
-      counts: countRequirements(mockRequirements),
+      counts: { total: 0, confirmed: 0, rejected: 0, pending: 0, ambiguous: 0 },
     };
   }
 }
@@ -104,7 +104,7 @@ export async function loadDocumentCount(projectId = 1): Promise<number> {
     const data = await getJson<{ total: number }>(`/api/projects/${projectId}/documents`);
     return data.total;
   } catch {
-    return 1; // mock 状态：P0 里的示例文档
+    return 0;
   }
 }
 

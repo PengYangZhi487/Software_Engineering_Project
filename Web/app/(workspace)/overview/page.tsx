@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@/components/icon";
+import { Offline } from "@/components/offline";
 import { loadQuality, loadRequirements, loadTrace } from "@/lib/server";
 
 const ACTIVITY = [
@@ -12,9 +13,10 @@ const ACTIVITY = [
 
 export default async function OverviewPage() {
   const feed = await loadRequirements(1);
-  const quality = await loadQuality(1);
-  const trace = await loadTrace(1);
-  const { items, counts, source, error } = feed;
+  if (feed.source === "mock") return <Offline message={feed.error} />;
+
+  const [quality, trace] = await Promise.all([loadQuality(1), loadTrace(1)]);
+  const { items, counts } = feed;
   const byKind = quality.byKind;
   const ambiguousIssues = byKind.ambiguous ?? 0;
   const conflictIssues = byKind.conflict ?? 0;
@@ -42,11 +44,6 @@ export default async function OverviewPage() {
           <div className="eyebrow">PROJECT · 需求工程</div>
           <h1 className="page-title">
             校园选课系统 <span className="ver">V1.0</span>
-            {source === "mock" ? (
-              <span className="chip warn" title={error ?? "后端未连接，当前展示示例数据"}>
-                示例数据
-              </span>
-            ) : null}
           </h1>
           <div className="page-sub">从需求文档到追踪矩阵，一条主线走完。当前停在「需求审核」。</div>
         </div>
