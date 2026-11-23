@@ -77,10 +77,11 @@ def save_requirements(
     try:
         if clear_first:
             # 重新抽取会替换需求编号，旧需求下的用例与关联必须先清掉，否则外键会拦。
+            # 清空与随后的插入放在同一个事务里：任一步失败都整体回滚，不会出现
+            # “旧数据已删、新数据只写了一半”的中间态。
             for table in ("ChangeLog", "RequirementTestLink", "TestCase"):
                 conn.execute(f"DELETE FROM {table} WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM Requirement WHERE project_id = ?", (project_id,))
-            conn.commit()
             logger.info("clear_first=True，已清空 project_id=%s 的旧需求及其用例", project_id)
 
         sql = """
@@ -111,25 +112,25 @@ def save_requirements(
                     or locate_requirement(r.get("title", ""), para_index)
                 )
 
-            try:
-                conn.execute(sql, (
-                    rid,
-                    project_id,
-                    doc_id,
-                    r.get("title") or "",
-                    r.get("description") or "",
-                    _to_acceptance_text(r.get("acceptance_criteria", [])),
-                    _normalize_req_type(r.get("req_type")),
-                    "未审核",
-                    json.dumps(loc, ensure_ascii=False) if loc else None,
-                    is_amb,
-                ))
-                saved += 1
-            except Exception as e:
-                skipped += 1
-                logger.exception("写入 %s 失败: %s", rid, e)
+            conn.execute(sql, (
+                rid,
+                project_id,
+                doc_id,
+                r.get("title") or "",
+                r.get("description") or "",
+                _to_acceptance_text(r.get("acceptance_criteria", [])),
+                _normalize_req_type(r.get("req_type")),
+                "未审核",
+                json.dumps(loc, ensure_ascii=False) if loc else None,
+                is_amb,
+            ))
+            saved += 1
 
         conn.commit()
+    except Exception:
+        conn.rollback()
+        logger.exception("保存需求失败，已回滚 project_id=%s", project_id)
+        raise
     finally:
         conn.close()
 

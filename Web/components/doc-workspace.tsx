@@ -30,6 +30,7 @@ export function DocWorkspace({
   const [extractOpen, setExtractOpen] = useState(initialExtractOpen);
   const [extracting, setExtracting] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [extractMode, setExtractMode] = useState<"append" | "replace">("append");
   const [extractMsg, setExtractMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const paperRef = useRef<HTMLDivElement>(null);
 
@@ -41,21 +42,27 @@ export function DocWorkspace({
     return () => clearInterval(timer);
   }, [extracting]);
 
-  async function runExtract() {
+  async function runExtract(mode: "append" | "replace") {
     if (!doc) return;
+    const before = requirements.length;
     setExtracting(true);
+    setExtractMode(mode);
     setExtractMsg(null);
     try {
       const res = await apiFetch(
-        `/api/projects/${doc.project_id}/requirements/extract?replace=true&doc_id=${doc.doc_id}`,
+        `/api/projects/${doc.project_id}/requirements/extract?replace=${mode === "replace"}&doc_id=${doc.doc_id}`,
         { method: "POST" },
       );
       const data = (await res.json()) as { created?: number };
+      const created = data.created ?? 0;
       setExtractOpen(false);
-      setExtractMsg({
-        kind: "ok",
-        text: `已抽取 ${data.created ?? 0} 条需求，编号从 CR-001 起，状态为「未审核」`,
-      });
+      const text =
+        mode === "replace"
+          ? `已覆盖抽取 ${created} 条需求（原有 ${before} 条已清空），编号从 CR-001 起，状态为「未审核」`
+          : before > 0
+            ? `已追加 ${created} 条需求（原有 ${before} 条保留），状态为「未审核」`
+            : `已抽取 ${created} 条需求，编号从 CR-001 起，状态为「未审核」`;
+      setExtractMsg({ kind: "ok", text });
       router.refresh();
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -129,7 +136,7 @@ export function DocWorkspace({
             className="btn primary"
             type="button"
             disabled={!doc || extracting || !!apiError}
-            title={doc ? "调用大模型从文档重新抽取需求" : "先上传一份文档"}
+            title={doc ? "调用大模型从文档抽取需求；已有需求时会让你选追加或覆盖" : "先上传一份文档"}
             style={!doc || apiError ? { opacity: 0.55, cursor: "not-allowed" } : undefined}
             onClick={() => {
               if (!doc) return;
@@ -137,7 +144,7 @@ export function DocWorkspace({
                 setExtractOpen(true);
                 setExtractMsg(null);
               } else {
-                void runExtract();
+                void runExtract("append");
               }
             }}
           >
@@ -152,12 +159,13 @@ export function DocWorkspace({
       {extractOpen ? (
         <div className="card extract-card">
           <div className="card-h">
-            <span className="t">重新抽取需求</span>
-            <span className="m">会覆盖当前 {requirements.length} 条</span>
+            <span className="t">抽取需求</span>
+            <span className="m">已有 {requirements.length} 条</span>
           </div>
           <div className="card-b extract-body">
             <div className="extract-note">
-              将调用大模型重新解析整份文档，并清空当前项目的 {requirements.length} 条需求（含已确认的）。
+              追加：新需求接着当前编号续号，已有 {requirements.length} 条（含已确认的）保持不动；
+              覆盖：先清空这 {requirements.length} 条再写入，编号从 CR-001 重来。
               预计 10–30 秒，期间不要关闭页面。
             </div>
             <button
@@ -168,8 +176,21 @@ export function DocWorkspace({
             >
               取消
             </button>
-            <button className="btn primary" type="button" disabled={extracting} onClick={runExtract}>
-              {extracting ? `抽取中… ${elapsed}s` : "覆盖并抽取"}
+            <button
+              className="btn primary"
+              type="button"
+              disabled={extracting}
+              onClick={() => runExtract("append")}
+            >
+              {extracting && extractMode === "append" ? `抽取中… ${elapsed}s` : "追加抽取"}
+            </button>
+            <button
+              className="btn danger"
+              type="button"
+              disabled={extracting}
+              onClick={() => runExtract("replace")}
+            >
+              {extracting && extractMode === "replace" ? `抽取中… ${elapsed}s` : "覆盖并抽取"}
             </button>
           </div>
         </div>
@@ -229,7 +250,7 @@ export function DocWorkspace({
         <div
           className="doc-grid"
           style={{
-            height: uploadOpen ? "calc(100vh - 372px)" : extractOpen ? "calc(100vh - 330px)" : undefined,
+            height: uploadOpen ? "calc(100vh - 372px)" : extractOpen ? "calc(100vh - 350px)" : undefined,
           }}
         >
           <div className="card pane">

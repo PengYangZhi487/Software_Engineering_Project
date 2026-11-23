@@ -7,7 +7,9 @@ PATCH /api/projects/{project_id}/requirements/{req_id}   确认 / 驳回 / 撤�
 约定：
 - 抽取是「候选」，一律以 未审核 入库；确认与否由人决定（AI 提候选、人做决策）。
 - 编号由程序生成（CR-001…），不信任模型自己编的编号，避免重复。
-- replace=true 时会先清空该项目旧需求（重新抽取的场景），默认 true。
+- replace=false（默认）时追加写入并按项目 max+1 续号；replace=true 显式覆盖，
+  会先清空该项目旧需求（破坏性，需调用方明确传参）。写入是单个事务：清空与
+  插入要么全部生效，要么整体回滚。
 """
 from __future__ import annotations
 
@@ -78,7 +80,9 @@ def list_requirements(
 def extract_requirements(
     project_id: int,
     doc_id: int | None = Query(None, description="不传则用最新文档"),
-    replace: bool = Query(True, description="true=先清空旧需求再写入"),
+    replace: bool = Query(
+        False, description="true=先清空该项目旧需求再写入（破坏性）；默认 false 追加续号"
+    ),
     x_deepseek_key: str | None = Header(
         None,
         alias="X-DeepSeek-Key",

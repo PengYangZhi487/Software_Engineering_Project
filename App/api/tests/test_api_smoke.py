@@ -7,9 +7,11 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import io
 import json
 import os
+import sqlite3
 import tempfile
 import unittest
 import zipfile
@@ -720,6 +722,139 @@ class DiffTests(unittest.TestCase):
         self.assertEqual(change.removed_numbers, ["50"])
         self.assertEqual(change.added_numbers, ["60"])
         self.assertEqual(change.cases[0].status, "已审核")
+
+
+class A3TransactionTests(unittest.TestCase):
+    """A3：抽取写入必须是「清空 + 插入」同一事务，失败整体回滚。"""
+
+    def setUp(self) -> None:
+        conn = get_connection()
+        try:
+            cur = conn.execute(
+                "INSERT INTO Project (project_name) VALUES ('A3 事务测试项目')"
+            )
+            self.pid = int(cur.lastrowid)
+            conn.commit()
+        finally:
+            conn.close()
+
+    def tearDown(self) -> None:
+        """按外键顺序清掉本测试的项目，避免污染共享测试库。"""
+        pid = getattr(self, "pid", None)
+        if pid is None:
+            return
+        conn = get_connection()
+        try:
+            for table in (
+                "ChangeLog", "RequirementTestLink", "TestCase", "QualityDecision",
+            ):
+                conn.execute(f"DELETE FROM {table} WHERE project_id = ?", (pid,))
+            conn.execute("DELETE FROM Requirement WHERE project_id = ?", (pid,))
+            conn.execute("DELETE FROM Document WHERE project_id = ?", (pid,))
+            conn.execute("DELETE FROM Project WHERE project_id = ?", (pid,))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def _count(self, table: str) -> int:
+        conn = get_connection()
+        try:
+            return int(
+                conn.execute(
+                    f"SELECT COUNT(*) FROM {table} WHERE project_id = ?", (self.pid,)
+                ).fetchone()[0]
+            )
+        finally:
+            conn.close()
+
+    def _req_row(self, req_id: str):
+        conn = get_connection()
+        try:
+            return conn.execute(
+                "SELECT title, description FROM Requirement "
+                "WHERE project_id = ? AND req_id = ?",
+                (self.pid, req_id),
+            ).fetchone()
+        finally:
+            conn.close()
+
+    def test_failed_insert_rolls_back_clear(self) -> None:
+        """一批里有一条写坏时整体回滚：旧需求不能先被清空，也不能只写半截。"""
+        req_service.save_requirements(
+            self.pid,
+            None,
+            [{"req_id": "CR-001", "title": "课程容量", "description": "课程默认容量 50 人。"}],
+        )
+
+        # 同一批里出现重复 req_id：第二条触发 UNIQUE(project_id, req_id)
+        bad = [
+            {"req_id": "CR-001", "title": "容量 60 人", "description": "容量改为 60 人。"},
+            {"req_id": "CR-001", "title": "容量 70 人", "description": "容量改为 70 人。"},
+        ]
+        with self.assertRaises(sqlite3.IntegrityError):
+            req_service.save_requirements(self.pid, None, bad, clear_first=True)
+
+        self.assertEqual(self._count("Requirement"), 1, "回滚后旧需求应原样保留")
+        row = self._req_row("CR-001")
+        self.assertIsNotNone(row)
+        self.assertEqual(row["title"], "课程容量", "旧数据不能被半截写入覆盖")
+
+    def test_replace_clears_changelog_before_requirement(self) -> None:
+        """清空顺序：先删 ChangeLog 等子表，再删 Requirement，否则外键会拦。"""
+        req_service.save_requirements(
+            self.pid,
+            None,
+            [{"req_id": "CR-001", "title": "课程容量", "description": "课程默认容量 50 人。"}],
+        )
+        conn = get_connection()
+        try:
+            conn.execute(
+                "INSERT INTO ChangeLog (project_id, req_id, version, change_type) "
+                "VALUES (?, 'CR-001', 'V1.0', 'changed')",
+                (self.pid,),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        self.assertEqual(self._count("ChangeLog"), 1)
+
+        stats = req_service.save_requirements(
+            self.pid,
+            None,
+            [{"req_id": "CR-001", "title": "课程容量", "description": "课程默认容量 60 人。"}],
+            clear_first=True,
+        )
+        self.assertEqual(stats["saved"], 1)
+        self.assertEqual(self._count("ChangeLog"), 0, "旧 ChangeLog 必须一并清掉")
+
+    def test_extract_replace_defaults_to_false(self) -> None:
+        """接口层：不传 replace 时按追加处理，不能默认覆盖旧需求。"""
+        default = inspect.signature(extract_requirements).parameters["replace"].default
+        self.assertIs(getattr(default, "default", default), False)
+
+    def test_extract_appends_when_replace_false(self) -> None:
+        """显式 replace=false 时续号追加，已有需求不受影响。"""
+        from unittest.mock import patch
+
+        _upload(DOCX.read_bytes(), "a3.docx", "V1.0", self.pid)
+        fake = llm_service.RequirementList(
+            requirements=[
+                llm_service.Requirement(
+                    req_id="X-1",
+                    title="课程容量",
+                    description="课程默认容量 50 人。",
+                    req_type="functional",
+                    acceptance_criteria=["50 人后拒绝"],
+                )
+            ]
+        )
+        with patch.object(llm_service, "extract_requirements", return_value=fake):
+            first = extract_requirements(self.pid, None, False, "test-key")
+            second = extract_requirements(self.pid, None, False, "test-key")
+
+        self.assertEqual([i.req_id for i in first.items], ["CR-001"])
+        self.assertEqual([i.req_id for i in second.items], ["CR-001", "CR-002"])
+        self.assertFalse(second.replaced)
 
 
 class ReportTests(unittest.TestCase):

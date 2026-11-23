@@ -81,7 +81,10 @@ Word 表格也会解析：**一行转一段**（`style=Table`）。首行像表�
 ### 抽取需求
 
 ```powershell
-# 会真正调用 DeepSeek，消耗少量额度；replace=true 会先清空该项目旧需求
+# 会真正调用 DeepSeek，消耗少量额度
+# 默认 replace=false：追加写入，编号接着项目最大号续（CR-00x），旧需求与用例保留
+curl.exe -X POST "http://127.0.0.1:8000/api/projects/1/requirements/extract"
+# 显式 replace=true 才是覆盖：先清空该项目旧需求/用例，再整体写入（破坏性，单事务）
 curl.exe -X POST "http://127.0.0.1:8000/api/projects/1/requirements/extract?replace=true"
 ```
 
