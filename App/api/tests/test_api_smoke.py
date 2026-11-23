@@ -98,6 +98,40 @@ class ParseTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_document(str(bad))
 
+    def test_docx_table_rows_are_parsed(self) -> None:
+        """表格里的需求不能丢：一行转一段，有表头时带列名。"""
+        from docx import Document as Docx
+
+        path = TMP / "with_table.docx"
+        d = Docx()
+        d.add_heading("校园选课系统需求", level=1)
+        d.add_paragraph("需求如下：")
+        t = d.add_table(rows=3, cols=3)
+        for i, h in enumerate(["编号", "需求名称", "描述"]):
+            t.rows[0].cells[i].text = h
+        t.rows[1].cells[0].text = "REQ-001"
+        t.rows[1].cells[1].text = "课程容量"
+        t.rows[1].cells[2].text = "每门课程最多容纳50人。"
+        t.rows[2].cells[0].text = "REQ-002"
+        t.rows[2].cells[1].text = "退课截止"
+        t.rows[2].cells[2].text = "第2周周五18:00后不可退课。"
+        d.add_paragraph("以上为全部需求。")
+        d.save(path)
+
+        text, paras = parse_document(str(path))
+
+        self.assertIn("REQ-001", text)
+        self.assertIn("每门课程最多容纳50人", text)
+        self.assertIn("第2周周五18:00后不可退课", text)
+        self.assertIn("以上为全部需求", text, "表格之后的段落不能丢")
+        self.assertIn("编号：REQ-001", text, "有表头时应带列名")
+        self.assertEqual(
+            [p["style"] for p in paras],
+            ["Heading 1", "Normal", "Table", "Table", "Normal"],
+        )
+        self.assertEqual([p["para_no"] for p in paras], [0, 1, 2, 3, 4],
+                         "段落与表格行应共用连续坐标")
+
 
 class ApiTests(unittest.TestCase):
     def test_routes_registered(self) -> None:

@@ -72,6 +72,10 @@ curl.exe -X POST http://127.0.0.1:8000/api/projects/1/documents `
 
 实测：52 段、1071 字符，段落 0 是 `Heading 1`、段落 2 是 `Heading 2`。
 
+Word 表格也会解析：**一行转一段**（`style=Table`）。首行像表头时，输出成
+`编号：REQ-001 | 需求名称：课程容量 | 描述：……`；没有表头则退化成 `A | B | C`。
+表格行与普通段落共用同一套 `para_no`，所以来源定位和版本比对能直接工作。
+
 ### 抽取需求
 
 ```powershell
@@ -211,7 +215,7 @@ curl.exe -o report.csv "http://127.0.0.1:8000/api/projects/1/report/export?forma
 .\venv\Scripts\python.exe -m unittest discover -s App\api\tests -v
 ```
 
-22 条：段落与样式、非法扩展名、路由注册、上传→回读（含 file_path 不外露）、404/415/400、缺 Key 401、抽取→确认→驳回、两个项目可各自 CR-001、跨项目文档抽取拒绝、zip bomb 拒绝、质量规则、用例生成→审核→驳回、矩阵覆盖率与 SQL 复算一致性、两版文档比对与受影响用例、报告与 CSV 一致性（全部用假 LLM，不耗额度）。
+23 条：段落与样式、表格行解析、非法扩展名、路由注册、上传→回读（含 file_path 不外露）、404/415/400、缺 Key 401、抽取→确认→驳回、两个项目可各自 CR-001、跨项目文档抽取拒绝、zip bomb 拒绝、质量规则、用例生成→审核→驳回、矩阵覆盖率与 SQL 复算一致性、两版文档比对与受影响用例、报告与 CSV 一致性（全部用假 LLM，不耗额度）。
 
 ## 下一步
 

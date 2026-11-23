@@ -76,6 +76,12 @@ export function DocWorkspace({
     () => (h1 ? paragraphs.filter((p) => p.para_no !== h1.para_no) : paragraphs),
     [paragraphs, h1],
   );
+
+  // 显示序号只给正文段落（标题不占号），真实坐标仍是 para_no
+  const numberedBody = useMemo(() => {
+    let n = 0;
+    return body.map((p) => ({ p, no: p.is_heading ? null : ++n }));
+  }, [body]);
   const candidates = useMemo(
     () => (selected == null ? [] : requirements.filter((r) => r.para === selected)),
     [selected, requirements],
@@ -233,13 +239,13 @@ export function DocWorkspace({
               <span style={{ marginLeft: "auto" }}>{headings.length}</span>
             </div>
             <div className="pane-b">
-              {headings.map((h) => (
+              {headings.map((h, i) => (
                 <div
                   key={h.para_no}
                   className={`outline-item h${h.para_no === selected ? " active" : ""}`}
                   onClick={() => setSelected(h.para_no)}
                 >
-                  <span className="no">{h.para_no}</span>
+                  <span className="no">{i + 1}</span>
                   <span>{h.text}</span>
                 </div>
               ))}
@@ -263,14 +269,14 @@ export function DocWorkspace({
                 <div className="doc-meta">
                   {doc.filename} · {doc.version} · {doc.paragraphs} 段 · 解析于 {formatApiTime(doc.upload_time)}
                 </div>
-                {body.map((p) => (
+                {numberedBody.map(({ p, no }) => (
                   <div
                     key={p.para_no}
                     data-para={p.para_no}
-                    className={`p${p.is_heading ? " hd" : ""}${p.para_no === selected ? " active" : ""}`}
+                    className={`p${p.is_heading ? " hd" : ""}${p.style === "Table" ? " tbl" : ""}${p.para_no === selected ? " active" : ""}`}
                     onClick={() => setSelected(p.para_no)}
                   >
-                    <div className="no">{p.para_no}</div>
+                    <div className="no">{no ?? ""}</div>
                     <div className="tx">{p.text}</div>
                   </div>
                 ))}

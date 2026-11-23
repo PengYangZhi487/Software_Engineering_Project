@@ -378,22 +378,35 @@ body::before {
 .outline-item { padding: 5px 14px; font-size: 12px; color: var(--text-2); cursor: pointer; display: flex; gap: 8px; align-items: baseline; }
 .outline-item:hover { background: var(--surface-2); color: var(--text); }
 .outline-item.h { font-weight: 600; color: var(--text); margin-top: 6px; }
-.outline-item .no { font-family: var(--mono); font-size: 9.5px; color: var(--text-3); width: 18px; text-align: right; flex: none; }
+.outline-item .no { font-family: var(--mono); font-size: 9.5px; color: var(--text-3); width: 20px; text-align: right; flex: none; }
 
 .paper { padding: 26px 30px 40px; }
 .paper-inner { max-width: 680px; margin: 0 auto; }
 .doc-title { font-size: 17px; font-weight: 650; letter-spacing: -.01em; margin: 0 0 4px; }
 .doc-meta { font-size: 11px; color: var(--text-3); margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
 .p {
-  display: grid; grid-template-columns: 22px 1fr; gap: 8px;
-  padding: 5px 6px 5px 4px; border-radius: 5px; cursor: text;
+  display: grid; grid-template-columns: 26px 1fr; gap: 9px;
+  padding: 6px 6px 6px 4px; border-radius: 5px; cursor: text;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
   transition: background .13s var(--ease);
 }
+.p:last-child { border-bottom: 0; }
 .p:hover { background: var(--surface-2); }
 .p.active { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
 .p .no { font-family: var(--mono); font-size: 9.5px; color: var(--text-3); text-align: right; padding-top: 4px; }
 .p .tx { font-size: 13px; line-height: 1.85; color: var(--text-2); }
-.p.hd .tx { font-size: 13px; font-weight: 600; color: var(--text); margin-top: 12px; }
+.p.hd {
+  grid-template-columns: 1fr;
+  margin-top: 12px; padding-top: 10px;
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+}
+.p.hd .no { display: none; }
+.p.hd .tx { font-size: 13.5px; font-weight: 600; color: var(--text); }
+/* 表格解析出来的行：左侧色条 + 略弱文字 */
+.p.tbl { box-shadow: inset 2px 0 0 var(--line-strong); }
+.p.tbl .tx { font-size: 12.5px; color: var(--text-3); }
+.p.tbl.active { box-shadow: inset 2px 0 0 var(--accent); }
 .p .tx em { font-style: normal; background: color-mix(in srgb, var(--warn) 22%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); padding: 0 1px; border-radius: 2px; }
 
 .cand { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
