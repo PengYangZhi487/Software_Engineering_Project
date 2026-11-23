@@ -21,6 +21,8 @@ Software_Engineering_Project/
 │  └─ prototype/        P0 静态视觉稿（preview.html + 截图）
 ├─ tests/               测试与数据集
 │  └─ datasets/         选课系统需求说明书（25 条，含模糊/冲突）
+├─ tools/               运维脚本
+│  └─ seed_demo.py      清空并重建演示数据（不调用大模型）
 ├─ archive/             历史产物（不参与构建，见 archive/README.md）
 │  ├─ streamlit-v1/     v1 Streamlit 版（已被 Web v2 取代）
 │  ├─ feasibility/      可行性原型 P1–P6
@@ -65,6 +67,18 @@ $env:DEEPSEEK_API_KEY = "sk-..."   # 只对当前终端有效
 ```powershell
 .\venv\Scripts\python.exe -m unittest discover -s App\api\tests -v
 ```
+
+## 演示数据
+
+演示 / 答辩前把库恢复成固定状态（不调用大模型，可重复执行）：
+
+```powershell
+.\venv\Scripts\python.exe tools\seed_demo.py --dry-run   # 先看计划
+.\venv\Scripts\python.exe tools\seed_demo.py --yes       # 执行，自动备份数据库
+```
+
+重建结果：1 个项目 · 2 个版本 · 25 条需求（14 已确认 / 11 未审核）·
+12 条用例（7 已审核 / 4 已生成 / 1 已驳回）· 10 条质量问题 · 覆盖率 43% · 2 处版本变更。
 
 ## 文档入口
 
