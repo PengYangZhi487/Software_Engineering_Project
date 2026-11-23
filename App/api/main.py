@@ -14,6 +14,7 @@ from App.api.routers import (
     documents,
     executions,
     health,
+    importer,
     projects,
     quality,
     report,
@@ -61,6 +62,7 @@ app.include_router(quality.router)
 app.include_router(cases.router)
 app.include_router(executions.router)
 app.include_router(search.router)
+app.include_router(importer.router)
 app.include_router(trace.router)
 app.include_router(diff.router)
 app.include_router(report.router)

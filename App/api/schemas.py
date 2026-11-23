@@ -339,3 +339,17 @@ class SearchOut(BaseModel):
     cases: list[TestCaseOut] = Field(default_factory=list)
     quality: list[QualityIssue] = Field(default_factory=list)
     total: int = 0
+
+
+# ---------- 导入导出（Excel 当编辑器） ----------
+
+class ImportResult(BaseModel):
+    created: int = 0
+    updated: int = 0
+    skipped: int = 0
+    errors: list[str] = Field(default_factory=list)
+
+
+class RequirementImportJson(BaseModel):
+    mode: str = Field("append", description="append 追加 / replace 先清空再导入")
+    text: str = Field(description="粘贴的 JSON 文本，宽容纳 ```json 代码块包裹")

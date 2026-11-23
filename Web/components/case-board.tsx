@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ApiError, apiFetch, batchUpdateCases, formatApiTime } from "@/lib/api";
+import { ApiError, apiFetch, batchUpdateCases, exportCasesUrl, formatApiTime } from "@/lib/api";
 import type { CaseFeed, ExecutionItem, TestCaseItem } from "@/lib/server";
 import type { Requirement } from "@/lib/types";
 import { CaseForm } from "./case-form";
 import { ExecutionForm } from "./execution-form";
+import { ImportDialog } from "./import-dialog";
 import { Icon } from "./icon";
 
 type StatusFilter = "all" | "已生成" | "已审核" | "已驳回" | "已执行";
@@ -54,6 +55,7 @@ export function CaseBoard({
   const [batchBusy, setBatchBusy] = useState(false);
   const [execOpen, setExecOpen] = useState(false);
   const [execTarget, setExecTarget] = useState<TestCaseItem | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const confirmed = useMemo(() => requirements.filter((r) => r.status === "confirmed"), [requirements]);
@@ -197,6 +199,17 @@ export function CaseBoard({
           </div>
         </div>
         <div className="head-actions">
+          <button
+            className="btn"
+            type="button"
+            disabled={feed.source !== "api"}
+            onClick={() => setImportOpen(true)}
+          >
+            <Icon name="upload" />导入
+          </button>
+          <a className="btn" href={exportCasesUrl(1)} download>
+            <Icon name="down" />导出
+          </a>
           <button
             className="btn primary"
             type="button"
@@ -515,6 +528,14 @@ export function CaseBoard({
           )}
         </>
       )}
+
+      <ImportDialog
+        open={importOpen}
+        kind="cases"
+        projectId={1}
+        onClose={() => setImportOpen(false)}
+        onSaved={() => router.refresh()}
+      />
 
       <ExecutionForm
         open={execOpen}

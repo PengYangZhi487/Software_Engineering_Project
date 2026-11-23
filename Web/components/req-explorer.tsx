@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { API_BASE } from "@/lib/api";
+import { API_BASE, exportRequirementsUrl } from "@/lib/api";
 import { hitWords } from "@/lib/quality";
 import type { DataSource, Requirement } from "@/lib/types";
 import { Icon } from "./icon";
+import { ImportDialog } from "./import-dialog";
 import { RequirementForm } from "./requirement-form";
 
 type Filter = "all" | "unconfirmed" | "confirmed" | "rejected" | "ambiguous";
@@ -53,6 +54,7 @@ export function ReqExplorer({
   const [busy, setBusy] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Requirement | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectId = items[0]?.project_id ?? 1;
 
@@ -154,9 +156,12 @@ export function ReqExplorer({
           <div className="page-sub">AI 抽取的候选需求，逐条确认后进入追踪与用例生成。</div>
         </div>
         <div className="head-actions">
-          <button className="btn" type="button" onClick={() => flash("导出将在 P8 接入")}>
-            <Icon name="down" />导出
+          <button className="btn" type="button" onClick={() => setImportOpen(true)}>
+            <Icon name="upload" />导入
           </button>
+          <a className="btn" href={exportRequirementsUrl(projectId)} download>
+            <Icon name="down" />导出
+          </a>
           <button
             className="btn primary"
             type="button"
@@ -313,6 +318,14 @@ export function ReqExplorer({
       </aside>
 
       <div className={`toast${toast ? " on" : ""}`}>{toast}</div>
+
+      <ImportDialog
+        open={importOpen}
+        kind="requirements"
+        projectId={projectId}
+        onClose={() => setImportOpen(false)}
+        onSaved={() => router.refresh()}
+      />
 
       <RequirementForm
         open={formOpen}

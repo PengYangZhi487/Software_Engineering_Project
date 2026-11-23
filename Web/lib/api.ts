@@ -254,3 +254,57 @@ export async function batchUpdateCases(
 export function exportReportUrl(projectId: number, format: "csv" | "xlsx" = "xlsx"): string {
   return `${API_BASE}/api/projects/${projectId}/report/export?format=${format}`;
 }
+
+/* ---------- 导入 / 导出（Excel 当编辑器） ---------- */
+
+export interface ImportResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: string[];
+}
+
+export async function importRequirementsXlsx(
+  projectId: number,
+  file: File,
+  mode: "append" | "replace",
+): Promise<ImportResult> {
+  const body = new FormData();
+  body.append("file", file);
+  body.append("mode", mode);
+  const res = await apiFetch(`/api/projects/${projectId}/requirements/import/xlsx`, {
+    method: "POST",
+    body,
+  });
+  return (await res.json()) as ImportResult;
+}
+
+export async function importRequirementsJson(
+  projectId: number,
+  text: string,
+  mode: "append" | "replace",
+): Promise<ImportResult> {
+  const res = await apiFetch(`/api/projects/${projectId}/requirements/import/json`, {
+    method: "POST",
+    body: JSON.stringify({ mode, text }),
+  });
+  return (await res.json()) as ImportResult;
+}
+
+export async function importCasesXlsx(projectId: number, file: File): Promise<ImportResult> {
+  const body = new FormData();
+  body.append("file", file);
+  const res = await apiFetch(`/api/projects/${projectId}/cases/import/xlsx`, {
+    method: "POST",
+    body,
+  });
+  return (await res.json()) as ImportResult;
+}
+
+export function exportRequirementsUrl(projectId: number): string {
+  return `${API_BASE}/api/projects/${projectId}/requirements/export?format=xlsx`;
+}
+
+export function exportCasesUrl(projectId: number): string {
+  return `${API_BASE}/api/projects/${projectId}/cases/export?format=xlsx`;
+}

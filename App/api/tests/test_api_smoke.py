@@ -51,6 +51,13 @@ from App.api.routers.requirements import (  # noqa: E402
     list_requirements,
     update_requirement,
 )
+from App.api.routers.importer import (  # noqa: E402
+    export_cases,
+    export_requirements,
+    import_cases_xlsx,
+    import_requirements_json,
+    import_requirements_xlsx,
+)
 from App.api.schemas import (  # noqa: E402
     CaseBatchUpdate,
     CaseGenerateRequest,
@@ -59,6 +66,7 @@ from App.api.schemas import (  # noqa: E402
     ExecutionCreate,
     QualityDecisionUpdate,
     RequirementCreate,
+    RequirementImportJson,
     RequirementStatusUpdate,
     RequirementUpdate,
 )
@@ -1093,6 +1101,125 @@ class XlsxExportTests(unittest.TestCase):
         body = resp.body.decode("utf-8")
         self.assertTrue(body.startswith("\ufeff"))
         self.assertIn("需求清单", body)
+
+
+class ImportExportTests(unittest.TestCase):
+    """Excel 导入导出：让 Excel 当编辑器，软件当追溯层。"""
+
+    def setUp(self) -> None:
+        self.pid = _new_project("导入导出测试")
+        _seed_project(self.pid)
+
+    def tearDown(self) -> None:
+        _drop_project(self.pid)
+
+    def _xlsx_upload(self, headers: list[str], rows: list[list], filename: str = "清单.xlsx"):
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        ws.append(headers)
+        for row in rows:
+            ws.append(row)
+        buffer = io.BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        return UploadFile(filename=filename, file=buffer)
+
+    def test_requirements_export_roundtrip(self) -> None:
+        resp = export_requirements(self.pid)
+        self.assertIn("spreadsheetml", resp.media_type)
+
+        other = _new_project("导入目标项目")
+        try:
+            file = UploadFile(filename="req.xlsx", file=io.BytesIO(resp.body))
+            result = asyncio.run(import_requirements_xlsx(other, file, "append"))
+            self.assertEqual(result.created, 1)
+            self.assertEqual(result.updated, 0)
+            reqs = req_service.get_requirements(other)
+            self.assertEqual(len(reqs), 1)
+            self.assertEqual(reqs[0]["title"], "课程容量")
+            self.assertEqual(reqs[0]["acceptance"], ["第 51 人拒绝"])
+        finally:
+            _drop_project(other)
+
+    def test_import_json_ignores_model_req_ids(self) -> None:
+        text = json.dumps(
+            {
+                "requirements": [
+                    {
+                        "req_id": "X-1",
+                        "title": "退课审批",
+                        "description": "退课后需教师审批，审批通过才释放名额。",
+                        "req_type": "functional",
+                        "acceptance_criteria": ["审批通过后释放名额"],
+                    },
+                    {
+                        "req_id": "X-2",
+                        "title": "成绩查询",
+                        "description": "学生可以在线查询学期成绩。",
+                        "type": "non_functional",
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        )
+        result = import_requirements_json(self.pid, RequirementImportJson(text=text))
+        self.assertEqual(result.created, 2)
+        ids = [r["req_id"] for r in req_service.get_requirements(self.pid)]
+        self.assertIn("CR-002", ids)
+        self.assertIn("CR-003", ids)
+        self.assertNotIn("X-1", ids)
+
+    def test_xlsx_import_updates_existing(self) -> None:
+        file = self._xlsx_upload(
+            ["需求编号", "标题", "描述", "优先级", "状态", "验收条件"],
+            [["CR-001", "课程容量（改）", "课程默认容量 60 人。", "高", "已确认", "60 人后拒绝"]],
+        )
+        result = asyncio.run(import_requirements_xlsx(self.pid, file, "append"))
+        self.assertEqual(result.updated, 1)
+        req = repository.get_requirement(self.pid, "CR-001")
+        self.assertEqual(req["title"], "课程容量（改）")
+        self.assertEqual(req["status"], "已确认")
+        self.assertEqual(req["acceptance"], ["60 人后拒绝"])
+
+    def test_cases_export_and_import(self) -> None:
+        resp = export_cases(self.pid)
+        other = _new_project("用例导入目标")
+        try:
+            req_service.save_requirements(
+                other,
+                None,
+                [{"req_id": "CR-001", "title": "课程容量", "description": "课程默认容量 50 人。"}],
+            )
+            file = UploadFile(filename="cases.xlsx", file=io.BytesIO(resp.body))
+            result = asyncio.run(import_cases_xlsx(other, file))
+            self.assertEqual(result.created, 1)
+            cases = repository.list_cases(other)
+            self.assertEqual(cases[0]["title"], "容量边界 50 人")
+            self.assertEqual(cases[0]["req_id"], "CR-001")
+        finally:
+            _drop_project(other)
+
+    def test_import_skips_bad_rows(self) -> None:
+        file = self._xlsx_upload(
+            ["需求编号", "标题", "描述"],
+            [["", "没有描述", ""], ["", "正常需求", "描述内容"]],
+        )
+        result = asyncio.run(import_requirements_xlsx(self.pid, file, "append"))
+        self.assertEqual(result.skipped, 1)
+        self.assertEqual(result.created, 1)
+        self.assertTrue(result.errors)
+        self.assertIn("标题或描述为空", result.errors[0])
+
+    def test_export_rejects_bad_format(self) -> None:
+        with self.assertRaises(HTTPException) as ctx:
+            export_requirements(self.pid, "csv")
+        self.assertEqual(ctx.exception.status_code, 400)
+
+        with self.assertRaises(HTTPException) as ctx2:
+            export_cases(self.pid, "csv")
+        self.assertEqual(ctx2.exception.status_code, 400)
 
 
 if __name__ == "__main__":

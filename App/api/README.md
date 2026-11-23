@@ -66,6 +66,11 @@ $env:DEEPSEEK_API_KEY = "sk-..."
 | **GET** | `/api/projects/{project_id}/report` | **质量报告汇总**（需求 / 问题 / 用例 / 覆盖率） |
 | **GET** | `/api/projects/{project_id}/report/export` | **导出报告**（`?format=csv` 或 `xlsx`；xlsx 含测试用例执行表） |
 | **GET** | `/api/projects/{project_id}/search` | **全局搜索**（`?q=`，一次返回需求 / 用例 / 质量问题） |
+| **POST** | `/api/projects/{project_id}/requirements/import/xlsx` | **从 Excel 导入需求**（multipart：`file`、`mode=append/replace`） |
+| **POST** | `/api/projects/{project_id}/requirements/import/json` | **粘贴大模型 JSON 导入需求**（body：`mode`、`text`） |
+| **GET** | `/api/projects/{project_id}/requirements/export` | **导出可编辑需求清单**（`?format=xlsx`，可再导入） |
+| **POST** | `/api/projects/{project_id}/cases/import/xlsx` | **从 Excel 导入用例**（关联需求必须存在） |
+| **GET** | `/api/projects/{project_id}/cases/export` | **导出可编辑用例清单**（`?format=xlsx`） |
 
 ### 上传
 
@@ -199,6 +204,21 @@ curl.exe -o report.xlsx "http://127.0.0.1:8000/api/projects/1/report/export?form
 - `/report/export` 支持 `csv` 与 `xlsx`；
 - `xlsx` 的「测试用例执行表」按执行记录展开：用例、步骤、预期结果、执行结果、实际结果、测试 comments、执行人、测试者签名、执行环境、执行时间；
 - 页面、CSV、XLSX 都由同一个 `_build()` 生成，覆盖率复用追踪模块口径 —— 导出数字和页面一致（G4）。
+
+### 导入导出（Excel 当编辑器）
+
+```powershell
+# 导出 → Excel 里改 → 导入回来
+curl.exe -o req.xlsx "http://127.0.0.1:8000/api/projects/1/requirements/export?format=xlsx"
+curl.exe -X POST -F "file=@req.xlsx" -F "mode=append" `
+  "http://127.0.0.1:8000/api/projects/1/requirements/import/xlsx"
+```
+
+- 需求清单表头：需求编号 / 标题 / 描述 / 类型 / 优先级 / 状态 / 验收条件；
+- 用例清单表头：用例编号 / 关联需求 / 用例标题 / 前置条件 / 操作步骤 / 预期结果 / 类型 / 状态；
+- 导入规则：需求编号存在则更新、不存在或为空则新增（空编号按项目 max+1 生成）；用例编号 `TC-xxx` 存在则更新，否则新增；关联需求必须存在；
+- 粘贴大模型输出：`POST /requirements/import/json`，接受 `{requirements:[...]}` 或数组，也容忍 ```json 包裹；模型给的编号会被忽略，由程序续号；
+- `mode=replace` 会先清空该项目的需求、用例与执行记录，前端有二次提示。
 
 ## 设计约定
 
