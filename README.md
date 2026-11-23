@@ -87,3 +87,4 @@ $env:DEEPSEEK_API_KEY = "sk-..."   # 只对当前终端有效
 - 视觉稿说明：`docs/prototype/README.md`
 - 后端接口：`App/api/README.md`
 - 前端说明：`Web/README.md`
+- 交接与开发指南：`docs/项目交接与开发指南.md`
