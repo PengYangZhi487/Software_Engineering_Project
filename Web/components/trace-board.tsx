@@ -200,7 +200,7 @@ export function TraceBoard({ feed }: { feed: TraceFeed }) {
                 <table>
                   <thead>
                     <tr>
-                      <th className="rowh" style={{ zIndex: 4 }}>
+                      <th className="rowh">
                         需求 <span style={{ color: "var(--text-3)", fontWeight: 400 }}>{rows.length}</span>
                       </th>
                       {cases.map((c) => (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { updateCase } from "@/lib/api";
 import type { TestCaseItem } from "@/lib/server";
 import { Icon } from "./icon";
@@ -80,7 +81,7 @@ export function CaseForm({
     }
   }
 
-  return (
+  return createPortal(
     <>
       <div className="scrim on" onClick={onClose} />
       <div className="keydlg wide" role="dialog" aria-modal="true" aria-label="用例表单">
@@ -157,6 +158,7 @@ export function CaseForm({
           </button>
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }

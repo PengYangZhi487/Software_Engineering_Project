@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { createExecution, type ExecutionPayload } from "@/lib/api";
 import type { TestCaseItem } from "@/lib/server";
 import { Icon } from "./icon";
@@ -70,7 +71,7 @@ export function ExecutionForm({
     }
   }
 
-  return (
+  return createPortal(
     <>
       <div className="scrim on" onClick={onClose} />
       <div className="keydlg wide" role="dialog" aria-modal="true" aria-label="记录执行">
@@ -167,6 +168,7 @@ export function ExecutionForm({
           </button>
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }

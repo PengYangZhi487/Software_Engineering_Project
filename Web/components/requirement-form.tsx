@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { createRequirement, updateRequirement } from "@/lib/api";
 import type { Requirement } from "@/lib/types";
 import { Icon } from "./icon";
@@ -79,7 +80,7 @@ export function RequirementForm({
     }
   }
 
-  return (
+  return createPortal(
     <>
       <div className="scrim on" onClick={onClose} />
       <div className="keydlg wide" role="dialog" aria-modal="true" aria-label="需求表单">
@@ -159,6 +160,7 @@ export function RequirementForm({
           </button>
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   importCasesXlsx,
   importRequirementsJson,
@@ -77,7 +78,7 @@ export function ImportDialog({
     }
   }
 
-  return (
+  return createPortal(
     <>
       <div className="scrim on" onClick={onClose} />
       <div className="keydlg wide" role="dialog" aria-modal="true" aria-label="导入">
@@ -175,6 +176,7 @@ export function ImportDialog({
           </button>
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
