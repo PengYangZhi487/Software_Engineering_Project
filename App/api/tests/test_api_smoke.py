@@ -37,10 +37,11 @@ from App.api.routers.cases import (  # noqa: E402
 )
 from App.api.routers.documents import upload_document  # noqa: E402
 from App.api.routers.diff import document_diff  # noqa: E402
-from App.api.routers.quality import list_issues  # noqa: E402
+from App.api.routers.quality import decide_issue, list_issues  # noqa: E402
 from App.api.routers.report import export_report, get_report  # noqa: E402
 from App.api.routers.trace import get_coverage, get_trace  # noqa: E402
 from App.api.routers.requirements import (  # noqa: E402
+    create_requirement as api_create_requirement,
     extract_requirements,
     list_requirements,
     update_requirement,
@@ -48,7 +49,11 @@ from App.api.routers.requirements import (  # noqa: E402
 from App.api.schemas import (  # noqa: E402
     CaseGenerateRequest,
     CaseStatusUpdate,
+    CaseUpdate,
+    QualityDecisionUpdate,
+    RequirementCreate,
     RequirementStatusUpdate,
+    RequirementUpdate,
 )
 from App.dao.db import get_connection, init_db  # noqa: E402
 from App.services import case_service, llm_service, req_service  # noqa: E402
@@ -346,6 +351,60 @@ class RequirementFlowTests(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 400)
         self.assertIn("不属于", ctx.exception.detail)
 
+    def test_manual_create_and_edit(self) -> None:
+        created = api_create_requirement(
+            PROJECT_ID,
+            RequirementCreate(
+                title="退课申请审批",
+                description="学生退课后需教师审批，审批通过才释放名额。",
+                req_type="functional",
+                priority="高",
+                acceptance=["审批通过后名额释放", "审批拒绝后保留名额"],
+            ),
+        )
+        self.assertEqual(created.req_id, "CR-003", "编号应接着项目最大号续")
+        self.assertEqual(created.priority, "高")
+        self.assertEqual(created.status, "未审核")
+        self.assertIsNone(created.source_location, "手动建的需求没有来源段落")
+        self.assertFalse(created.is_ambiguous)
+
+        edited = update_requirement(
+            PROJECT_ID,
+            created.req_id,
+            RequirementUpdate(title="退课申请要快速审批", description="审批尽快完成。"),
+        )
+        self.assertEqual(edited.title, "退课申请要快速审批")
+        self.assertTrue(edited.is_ambiguous, "改后含「快速 / 尽快」应重新标记")
+
+        with self.assertRaises(HTTPException) as bad:
+            update_requirement(
+                PROJECT_ID, created.req_id, RequirementUpdate(priority="紧急")
+            )
+        self.assertEqual(bad.exception.status_code, 422)
+
+    def test_quality_decision_persists(self) -> None:
+        issues = list_issues(PROJECT_ID)
+        self.assertGreater(issues.total, 0, "CR-002 含模糊词，应至少有一条问题")
+        target = next(i for i in issues.items if i.kind == "ambiguous")
+        self.assertEqual(target.decision, "open")
+
+        decide_issue(
+            PROJECT_ID, target.fingerprint, QualityDecisionUpdate(decision="ignored")
+        )
+        again = list_issues(PROJECT_ID)
+        hit = next(i for i in again.items if i.fingerprint == target.fingerprint)
+        self.assertEqual(hit.decision, "ignored")
+        self.assertEqual(again.decided, 1)
+
+        decide_issue(
+            PROJECT_ID, target.fingerprint, QualityDecisionUpdate(decision="open")
+        )
+        restored = list_issues(PROJECT_ID)
+        self.assertEqual(
+            next(i for i in restored.items if i.fingerprint == target.fingerprint).decision,
+            "open",
+        )
+
     def test_requires_api_key(self) -> None:
         """没有请求头、也没有环境变量时，两个 LLM 接口都应 401。"""
         from unittest.mock import patch
@@ -481,6 +540,24 @@ class CaseFlowTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as illegal:
             update_case(PROJECT_ID, case.tc_id, CaseStatusUpdate(status="随便"))
         self.assertEqual(illegal.exception.status_code, 422)
+
+        edited = update_case(
+            PROJECT_ID,
+            case.tc_id,
+            CaseUpdate(
+                title="容量未满时选课成功（修订）",
+                steps=["学生提交选课请求", "系统校验名额"],
+                test_type="normal",
+                status="已执行",
+            ),
+        )
+        self.assertEqual(edited.title, "容量未满时选课成功（修订）")
+        self.assertEqual(edited.steps, ["学生提交选课请求", "系统校验名额"])
+        self.assertEqual(edited.status, "已执行")
+
+        with self.assertRaises(HTTPException) as bad_type:
+            update_case(PROJECT_ID, case.tc_id, CaseUpdate(test_type="smoke"))
+        self.assertEqual(bad_type.exception.status_code, 422)
 
     def test_generate_requires_confirmed(self) -> None:
         conn = get_connection()

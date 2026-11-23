@@ -59,6 +59,7 @@ class RequirementOut(BaseModel):
     title: str
     description: str
     req_type: str
+    priority: str = "中"
     status: str
     acceptance: list[str] = Field(default_factory=list)
     source_location: SourceLocation | None = None
@@ -86,22 +87,50 @@ class RequirementStatusUpdate(BaseModel):
     status: str = Field(description="未审核 / 已确认 / 已驳回")
 
 
+class RequirementCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=100, description="需求标题")
+    description: str = Field(min_length=1, description="需求描述")
+    req_type: str = Field("functional", description="functional / non_functional")
+    priority: str = Field("中", description="高 / 中 / 低")
+    acceptance: list[str] = Field(default_factory=list, description="验收条件")
+
+
+class RequirementUpdate(BaseModel):
+    """全字段可选：只传要改的字段。"""
+
+    title: str | None = Field(None, min_length=1, max_length=100)
+    description: str | None = None
+    req_type: str | None = None
+    priority: str | None = None
+    acceptance: list[str] | None = None
+    status: str | None = None
+
+
 # ---------- P4：质量 ----------
 
 class QualityIssue(BaseModel):
     issue_id: str
+    fingerprint: str = ""
     kind: str = Field(description="ambiguous / conflict / missing_acceptance")
     severity: str = Field(description="warn / danger")
     title: str
     detail: str
     req_ids: list[str] = Field(default_factory=list)
     words: list[str] = Field(default_factory=list)
+    decision: str = Field("open", description="open / confirmed / ignored")
 
 
 class QualitySummary(BaseModel):
     items: list[QualityIssue]
     total: int
+    open: int = 0
+    decided: int = 0
     by_kind: dict[str, int] = Field(default_factory=dict)
+
+
+class QualityDecisionUpdate(BaseModel):
+    decision: str = Field(description="open / confirmed / ignored")
+    note: str | None = None
 
 
 # ---------- P5：测试用例 ----------
@@ -139,7 +168,18 @@ class CaseGenerateResult(BaseModel):
 
 
 class CaseStatusUpdate(BaseModel):
-    status: str = Field(description="已生成 / 已审核 / 已驳回")
+    status: str = Field(description="已生成 / 已审核 / 已驳回 / 已执行")
+
+
+class CaseUpdate(BaseModel):
+    """全字段可选：只传要改的字段。"""
+
+    title: str | None = Field(None, min_length=1)
+    preconditions: list[str] | None = None
+    steps: list[str] | None = None
+    expected_result: str | None = None
+    test_type: str | None = None
+    status: str | None = None
 
 
 # ---------- P6：追踪 ----------

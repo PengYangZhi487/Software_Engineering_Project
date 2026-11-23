@@ -50,11 +50,13 @@ $env:DEEPSEEK_API_KEY = "sk-..."
 | GET | `/api/documents/{doc_id}/paragraphs` | 段落列表（含 `style` / `is_heading`） |
 | **POST** | `/api/projects/{project_id}/requirements/extract` | **调用 LLM 从文档抽取需求**（`?doc_id=`、`?replace=`） |
 | GET | `/api/projects/{project_id}/requirements` | 需求列表（`?status=未审核`） |
-| **PATCH** | `/api/projects/{project_id}/requirements/{req_id}` | **确认 / 驳回 / 撤回**（body：`{"status": "已确认"}`） |
+| **POST** | `/api/projects/{project_id}/requirements` | **手动新建需求**（body：`title`、`description`、`req_type`、`priority`、`acceptance`） |
+| **PATCH** | `/api/projects/{project_id}/requirements/{req_id}` | **编辑 / 确认 / 驳回**（部分字段：`title`、`description`、`req_type`、`priority`、`acceptance`、`status`） |
 | **GET** | `/api/projects/{project_id}/quality/issues` | **质量扫描**（模糊 / 冲突 / 缺验收） |
+| **PATCH** | `/api/projects/{project_id}/quality/issues/{fingerprint}` | **裁决质量问题**（`{"decision": "confirmed"}` / `ignored` / `open`） |
 | **POST** | `/api/projects/{project_id}/cases/generate` | **按已确认需求生成用例**（body：`req_ids`、`replace`） |
 | GET | `/api/projects/{project_id}/cases` | 用例列表（按状态 / 类型统计） |
-| **PATCH** | `/api/projects/{project_id}/cases/{tc_id}` | **审核 / 驳回 / 撤回**（body：`{"status": "已审核"}`） |
+| **PATCH** | `/api/projects/{project_id}/cases/{tc_id}` | **编辑 / 审核 / 驳回 / 标记已执行**（部分字段） |
 | **GET** | `/api/projects/{project_id}/trace` | **追踪矩阵**（需求 × 用例 + 汇总） |
 | **GET** | `/api/projects/{project_id}/trace/coverage` | **覆盖率纯 SQL 复算**（并与矩阵口径交叉校验） |
 | **GET** | `/api/projects/{project_id}/document-diff` | **两版文档比对 + 受影响用例**（`?base_doc_id=`、`?target_doc_id=`） |
@@ -191,7 +193,9 @@ curl.exe -o report.csv "http://127.0.0.1:8000/api/projects/1/report/export?forma
 ## 设计约定
 
 1. **AI 提候选，人做决策**：抽取结果一律以 `未审核` 入库，不会自动确认；用例同理，生成 ≠ 通过。
-2. **编号由程序生成，项目内唯一**：`Requirement.id` 是数据库自增主键，`req_id`（`CR-001…`）只保证 `UNIQUE(project_id, req_id)`——两个项目可以各自有 `CR-001`。编号不采信模型自己编的，`replace=false` 时从本项目最大号续号。
+2. **编号由程序生成，项目内唯一**：`Requirement.id` 是数据库自增主键，`req_id`（`CR-001…`）只保证 `UNIQUE(project_id, req_id)`——两个项目可以各自有 `CR-001`。编号不采信模型自己编的，`replace=false` 时从本项目最大号续号；手动新建也按项目续号。
+
+6. **质量问题可裁决**：每条问题带一个内容指纹（`kind + req_ids + words` 的 SHA1 前 12 位），裁决存 `QualityDecision` 表。同一份数据重复扫描指纹不变；需求内容改了，指纹变化，旧裁决自然失效。
 3. **失败即清理**：上传解析失败、入库失败、超限都会删掉落盘文件；抽取/生成失败返回 502，不写库。
 4. **可回退**：驳回不物理删除，状态置为 `已驳回`，便于追溯（前端可按状态筛选）。
 5. **关联留痕**：每生成一条用例就写一条 `RequirementTestLink`，P6 的追踪矩阵直接用它。
@@ -215,7 +219,7 @@ curl.exe -o report.csv "http://127.0.0.1:8000/api/projects/1/report/export?forma
 .\venv\Scripts\python.exe -m unittest discover -s App\api\tests -v
 ```
 
-23 条：段落与样式、表格行解析、非法扩展名、路由注册、上传→回读（含 file_path 不外露）、404/415/400、缺 Key 401、抽取→确认→驳回、两个项目可各自 CR-001、跨项目文档抽取拒绝、zip bomb 拒绝、质量规则、用例生成→审核→驳回、矩阵覆盖率与 SQL 复算一致性、两版文档比对与受影响用例、报告与 CSV 一致性（全部用假 LLM，不耗额度）。
+25 条：段落与样式、表格行解析、非法扩展名、路由注册、上传→回读（含 file_path 不外露）、404/415/400、缺 Key 401、抽取→确认→驳回、两个项目可各自 CR-001、手动新建/编辑需求、质量裁决持久化、跨项目文档抽取拒绝、zip bomb 拒绝、质量规则、用例生成→审核→驳回→编辑、矩阵覆盖率与 SQL 复算一致性、两版文档比对与受影响用例、报告与 CSV 一致性（全部用假 LLM，不耗额度）。
 
 ## 下一步
 

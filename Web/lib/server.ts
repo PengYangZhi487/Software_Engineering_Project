@@ -11,6 +11,7 @@ interface ApiRequirement {
   title: string;
   description: string;
   req_type: string;
+  priority: string;
   status: string;
   acceptance: string[];
   source_location: { para_no?: number | null; raw?: string | null; ratio?: number | null } | null;
@@ -64,6 +65,7 @@ function toRequirement(row: ApiRequirement): Requirement {
     title: row.title,
     desc: row.description,
     type: row.req_type === "non_functional" ? "non_functional" : "functional",
+    priority: row.priority ?? "中",
     acc: row.acceptance ?? [],
     risks,
     status: STATUS_MAP[row.status] ?? "unconfirmed",
@@ -114,17 +116,21 @@ export type QualityKind = "ambiguous" | "conflict" | "missing_acceptance";
 
 export interface QualityIssue {
   issue_id: string;
+  fingerprint: string;
   kind: QualityKind;
   severity: string;
   title: string;
   detail: string;
   req_ids: string[];
   words: string[];
+  decision: "open" | "confirmed" | "ignored";
 }
 
 export interface QualityFeed {
   items: QualityIssue[];
   total: number;
+  open: number;
+  decided: number;
   byKind: Record<string, number>;
   source: DataSource;
   error: string | null;
@@ -133,6 +139,8 @@ export interface QualityFeed {
 interface ApiQualitySummary {
   items: QualityIssue[];
   total: number;
+  open: number;
+  decided: number;
   by_kind: Record<string, number>;
 }
 
@@ -142,6 +150,8 @@ export async function loadQuality(projectId = 1): Promise<QualityFeed> {
     return {
       items: data.items,
       total: data.total,
+      open: data.open ?? 0,
+      decided: data.decided ?? 0,
       byKind: data.by_kind ?? {},
       source: "api",
       error: null,
@@ -150,6 +160,8 @@ export async function loadQuality(projectId = 1): Promise<QualityFeed> {
     return {
       items: [],
       total: 0,
+      open: 0,
+      decided: 0,
       byKind: {},
       source: "mock",
       error: err instanceof Error ? err.message : "无法连接后端",

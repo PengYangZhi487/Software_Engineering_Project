@@ -175,6 +175,59 @@ def max_requirement_number(project_id: int) -> int:
     return best
 
 
+def _requirement_of(row: Any) -> dict:
+    data = dict(row)
+    for key in ("acceptance", "source_location"):
+        if data.get(key):
+            try:
+                data[key] = json.loads(data[key])
+            except (json.JSONDecodeError, TypeError):
+                pass
+    return data
+
+
+def insert_requirement(
+    *,
+    req_id: str,
+    project_id: int,
+    title: str,
+    description: str,
+    acceptance: list[str],
+    req_type: str,
+    priority: str,
+    is_ambiguous: int,
+) -> dict:
+    """手动创建的需求：没有来源文档，source_location 为空。"""
+    conn = get_connection()
+    try:
+        conn.execute(
+            """
+            INSERT INTO Requirement
+                (req_id, project_id, doc_id, title, description, acceptance,
+                 req_type, priority, status, source_location, is_ambiguous)
+            VALUES (?, ?, NULL, ?, ?, ?, ?, ?, '未审核', NULL, ?)
+            """,
+            (
+                req_id,
+                project_id,
+                title,
+                description,
+                json.dumps(acceptance, ensure_ascii=False),
+                req_type,
+                priority,
+                is_ambiguous,
+            ),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM Requirement WHERE project_id = ? AND req_id = ?",
+            (project_id, req_id),
+        ).fetchone()
+        return _requirement_of(row)
+    finally:
+        conn.close()
+
+
 def get_requirement(project_id: int, req_id: str) -> dict | None:
     conn = get_connection()
     try:
@@ -184,17 +237,9 @@ def get_requirement(project_id: int, req_id: str) -> dict | None:
         ).fetchone()
         if row is None:
             return None
-        data = dict(row)
+        return _requirement_of(row)
     finally:
         conn.close()
-
-    for key in ("acceptance", "source_location"):
-        if data.get(key):
-            try:
-                data[key] = json.loads(data[key])
-            except (json.JSONDecodeError, TypeError):
-                pass
-    return data
 
 
 # ---------- P5：测试用例 ----------
@@ -320,6 +365,23 @@ def update_case_status(tc_id: int, status: str) -> bool:
         conn.close()
 
 
+def update_case_fields(tc_id: int, fields: dict) -> bool:
+    """按白名单字段更新用例；空字典直接返回 False。"""
+    if not fields:
+        return False
+    sets = ", ".join(f"{key} = ?" for key in fields)
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            f"UPDATE TestCase SET {sets}, updated_at = CURRENT_TIMESTAMP WHERE tc_id = ?",
+            [*fields.values(), tc_id],
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 # ---------- P6：追踪矩阵 ----------
 
 def trace_requirements(project_id: int) -> list[dict]:
@@ -372,6 +434,47 @@ def trace_cases(project_id: int) -> list[dict]:
             (project_id,),
         ).fetchall()
         return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_quality_decisions(project_id: int) -> dict[str, str]:
+    """fingerprint -> decision（confirmed / ignored）。"""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT fingerprint, decision FROM QualityDecision WHERE project_id = ?",
+            (project_id,),
+        ).fetchall()
+        return {row["fingerprint"]: row["decision"] for row in rows}
+    finally:
+        conn.close()
+
+
+def set_quality_decision(
+    project_id: int, fingerprint: str, decision: str, note: str | None = None
+) -> None:
+    """写入或撤销裁决；decision=open 表示撤销。"""
+    conn = get_connection()
+    try:
+        if decision == "open":
+            conn.execute(
+                "DELETE FROM QualityDecision WHERE project_id = ? AND fingerprint = ?",
+                (project_id, fingerprint),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO QualityDecision (project_id, fingerprint, decision, note)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(project_id, fingerprint) DO UPDATE SET
+                    decision = excluded.decision,
+                    note = excluded.note,
+                    decided_at = CURRENT_TIMESTAMP
+                """,
+                (project_id, fingerprint, decision, note),
+            )
+        conn.commit()
     finally:
         conn.close()
 

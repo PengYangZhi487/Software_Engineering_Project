@@ -2,13 +2,27 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { TraceFeed } from "@/lib/server";
+import type { TraceFeed, TraceRequirement } from "@/lib/server";
 import { Icon } from "./icon";
 
 const TYPE_LABEL: Record<string, string> = { normal: "正常", abnormal: "异常", boundary: "边界" };
 
+const STATUS_META: Record<string, { label: string; cls: string }> = {
+  已确认: { label: "已确认", cls: "ok" },
+  未审核: { label: "未审核", cls: "idle" },
+  已驳回: { label: "已驳回", cls: "danger" },
+};
+
+type ReqCaseCounts = {
+  reviewed: number;
+  generated: number;
+  executed: number;
+  rejected: number;
+};
+
 export function TraceBoard({ feed }: { feed: TraceFeed }) {
   const [onlyUncovered, setOnlyUncovered] = useState(false);
+  const [mode, setMode] = useState<"summary" | "matrix">("summary");
 
   const { summary, cases, requirements } = feed;
   const ring = 2 * Math.PI * 30;
@@ -26,6 +40,25 @@ export function TraceBoard({ feed }: { feed: TraceFeed }) {
     () => requirements.filter((r) => r.status === "已确认" && !r.covered),
     [requirements],
   );
+
+  const perReq = useMemo(() => {
+    const map = new Map<string, ReqCaseCounts>();
+    for (const c of cases) {
+      if (!c.req_id) continue;
+      const item = map.get(c.req_id) ?? {
+        reviewed: 0,
+        generated: 0,
+        executed: 0,
+        rejected: 0,
+      };
+      if (c.status === "已审核") item.reviewed += 1;
+      else if (c.status === "已生成") item.generated += 1;
+      else if (c.status === "已执行") item.executed += 1;
+      else if (c.status === "已驳回") item.rejected += 1;
+      map.set(c.req_id, item);
+    }
+    return map;
+  }, [cases]);
 
   const mock = feed.source === "mock";
 
@@ -47,6 +80,22 @@ export function TraceBoard({ feed }: { feed: TraceFeed }) {
           </div>
         </div>
         <div className="head-actions">
+          <div className="seg">
+            <button
+              type="button"
+              className={mode === "summary" ? "on" : ""}
+              onClick={() => setMode("summary")}
+            >
+              汇总
+            </button>
+            <button
+              type="button"
+              className={mode === "matrix" ? "on" : ""}
+              onClick={() => setMode("matrix")}
+            >
+              矩阵
+            </button>
+          </div>
           <div className="seg">
             <button type="button" className={!onlyUncovered ? "on" : ""} onClick={() => setOnlyUncovered(false)}>
               全部
@@ -143,6 +192,8 @@ export function TraceBoard({ feed }: { feed: TraceFeed }) {
                 </div>
               </div>
             </div>
+          ) : mode === "summary" ? (
+            <SummaryTable rows={rows} perReq={perReq} />
           ) : (
             <div className="mx-split">
               <div className="mx">
@@ -245,5 +296,78 @@ export function TraceBoard({ feed }: { feed: TraceFeed }) {
         </>
       )}
     </section>
+  );
+}
+
+function SummaryTable({
+  rows,
+  perReq,
+}: {
+  rows: TraceRequirement[];
+  perReq: Map<string, ReqCaseCounts>;
+}) {
+  return (
+    <div className="card" style={{ overflow: "hidden" }}>
+      <table className="trace-summary">
+        <thead>
+          <tr>
+            <th>需求</th>
+            <th style={{ width: 90 }}>状态</th>
+            <th style={{ width: 76, textAlign: "right" }}>已审核</th>
+            <th style={{ width: 76, textAlign: "right" }}>已生成</th>
+            <th style={{ width: 76, textAlign: "right" }}>已执行</th>
+            <th style={{ width: 76, textAlign: "right" }}>已驳回</th>
+            <th style={{ width: 110 }}>覆盖</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const c = perReq.get(r.req_id) ?? {
+              reviewed: 0,
+              generated: 0,
+              executed: 0,
+              rejected: 0,
+            };
+            const meta = STATUS_META[r.status] ?? { label: r.status, cls: "" };
+            return (
+              <tr key={r.req_id} className={r.covered ? "" : "uncovered"}>
+                <td>
+                  <Link href={`/requirements?open=${r.req_id}`} style={{ textDecoration: "none" }}>
+                    <span className="rid">{r.req_id}</span>
+                    <span className="rt">{r.title}</span>
+                  </Link>
+                </td>
+                <td>
+                  <span className={`st ${meta.cls}`}>
+                    <span className="dot" />
+                    {meta.label}
+                  </span>
+                </td>
+                <td className="num">{c.reviewed}</td>
+                <td className="num">{c.generated}</td>
+                <td className="num">{c.executed}</td>
+                <td className="num">{c.rejected}</td>
+                <td>
+                  {r.covered ? (
+                    <span className="chip ok">已覆盖</span>
+                  ) : r.case_ids.length ? (
+                    <span className="chip warn">待审核</span>
+                  ) : (
+                    <span className="chip">未生成</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={7} style={{ textAlign: "center", padding: 28, color: "var(--text-3)" }}>
+                没有符合条件的需求
+              </td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+    </div>
   );
 }

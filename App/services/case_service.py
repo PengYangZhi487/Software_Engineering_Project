@@ -18,7 +18,7 @@ from App.services.llm_service import get_client
 
 logger = logging.getLogger(__name__)
 
-CASE_STATUS = ("已生成", "已审核", "已驳回")
+CASE_STATUS = ("已生成", "已审核", "已驳回", "已执行")
 CASE_TYPES = ("normal", "abnormal", "boundary")
 
 

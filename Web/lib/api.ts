@@ -148,3 +148,70 @@ export async function uploadDocument(
   });
   return (await res.json()) as UploadResult;
 }
+
+/* ---------- 需求写操作（M2） ---------- */
+
+export interface RequirementPayload {
+  title: string;
+  description: string;
+  req_type: string;
+  priority: string;
+  acceptance: string[];
+}
+
+export async function createRequirement(
+  projectId: number,
+  payload: RequirementPayload,
+): Promise<void> {
+  await apiFetch(`/api/projects/${projectId}/requirements`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateRequirement(
+  projectId: number,
+  reqId: string,
+  payload: Partial<RequirementPayload> & { status?: string },
+): Promise<void> {
+  await apiFetch(`/api/projects/${projectId}/requirements/${reqId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+/* ---------- 用例写操作（M4） ---------- */
+
+export interface CasePayload {
+  title?: string;
+  preconditions?: string[];
+  steps?: string[];
+  expected_result?: string;
+  test_type?: string;
+  status?: string;
+}
+
+export async function updateCase(
+  projectId: number,
+  tcId: number,
+  payload: CasePayload,
+): Promise<void> {
+  await apiFetch(`/api/projects/${projectId}/cases/${tcId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+/* ---------- 质量裁决（M3） ---------- */
+
+export async function decideQualityIssue(
+  projectId: number,
+  fingerprint: string,
+  decision: "open" | "confirmed" | "ignored",
+  note?: string,
+): Promise<void> {
+  await apiFetch(`/api/projects/${projectId}/quality/issues/${fingerprint}`, {
+    method: "PATCH",
+    body: JSON.stringify({ decision, note }),
+  });
+}

@@ -10,10 +10,17 @@
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from typing import Any, Iterable
 
 from App.services.quality_service import check_ambiguous, dedup_words
+
+
+def _fingerprint(kind: str, req_ids: list[str], words: list[str]) -> str:
+    """内容指纹：同一份数据重复扫描不变，需求内容改了才会变。"""
+    raw = "|".join([kind, ",".join(sorted(req_ids)), ",".join(sorted(words))])
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
 
 NUMERIC_RULES: list[dict[str, Any]] = [
     {"id": "max_courses", "label": "选课门数", "keywords": ("门",), "pattern": r"(\d+)\s*门",
@@ -47,6 +54,7 @@ def scan_requirements(rows: Iterable[dict]) -> list[dict]:
         seq += 1
         issues.append({
             "issue_id": f"Q-{seq:03d}",
+            "fingerprint": _fingerprint(kind, req_ids, words or []),
             "kind": kind,
             "severity": severity,
             "title": title,

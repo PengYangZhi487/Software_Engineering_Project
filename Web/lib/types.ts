@@ -10,6 +10,8 @@ export interface Requirement {
   title: string;
   desc: string;
   type: ReqType;
+  /** 高 / 中 / 低 */
+  priority: string;
   acc: string[];
   risks: Risk[];
   status: ReqStatus;

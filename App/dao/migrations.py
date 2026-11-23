@@ -31,6 +31,7 @@ _NEW_REQUIREMENT = """
         description TEXT NOT NULL,
         acceptance TEXT,
         req_type TEXT DEFAULT 'functional',
+        priority TEXT DEFAULT '中',
         status TEXT DEFAULT '未审核',
         source_location TEXT,
         is_ambiguous INTEGER DEFAULT 0,
@@ -90,6 +91,17 @@ _NEW_CHANGELOG = """
 
 def _columns(conn, table: str) -> set[str]:
     return {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
+def ensure_requirement_priority(conn) -> bool:
+    """给已经迁移到自增主键、但还没有 priority 列的库补列。"""
+    if "priority" in _columns(conn, "Requirement"):
+        return False
+    conn.execute("ALTER TABLE Requirement ADD COLUMN priority TEXT DEFAULT '中'")
+    conn.commit()
+    logger.warning("Requirement 已补列 priority")
+    print("[migrate] Requirement 已补列: priority")
+    return True
 
 
 def migrate_requirement_pk(conn) -> bool:

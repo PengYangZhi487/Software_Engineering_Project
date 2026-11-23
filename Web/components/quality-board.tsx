@@ -2,10 +2,13 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { decideQualityIssue } from "@/lib/api";
 import type { QualityFeed, QualityIssue } from "@/lib/server";
 import { Icon } from "./icon";
 
-type Filter = "all" | QualityIssue["kind"];
+type KindFilter = "all" | QualityIssue["kind"];
+type DecisionFilter = "all" | "open" | "confirmed" | "ignored";
 
 const KIND_META: Record<QualityIssue["kind"], { label: string; chip: string }> = {
   ambiguous: { label: "模糊表达", chip: "warn" },
@@ -13,31 +16,77 @@ const KIND_META: Record<QualityIssue["kind"], { label: string; chip: string }> =
   missing_acceptance: { label: "缺验收", chip: "" },
 };
 
-const FILTERS: { id: Filter; label: string }[] = [
+const KIND_FILTERS: { id: KindFilter; label: string }[] = [
   { id: "all", label: "全部" },
   { id: "ambiguous", label: "模糊" },
   { id: "conflict", label: "冲突" },
   { id: "missing_acceptance", label: "缺验收" },
 ];
 
-export function QualityBoard({ feed }: { feed: QualityFeed }) {
-  const [filter, setFilter] = useState<Filter>("all");
+const DECISION_META: Record<string, { label: string; chip: string }> = {
+  open: { label: "待处理", chip: "idle" },
+  confirmed: { label: "已确认", chip: "danger" },
+  ignored: { label: "已忽略", chip: "" },
+};
 
-  const counts = useMemo(
+const DECISION_FILTERS: { id: DecisionFilter; label: string }[] = [
+  { id: "all", label: "全部" },
+  { id: "open", label: "待处理" },
+  { id: "confirmed", label: "已确认" },
+  { id: "ignored", label: "已忽略" },
+];
+
+export function QualityBoard({ feed }: { feed: QualityFeed }) {
+  const router = useRouter();
+  const [kind, setKind] = useState<KindFilter>("all");
+  const [decision, setDecision] = useState<DecisionFilter>("all");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const kindCounts = useMemo(
     () =>
       ({
         all: feed.total,
         ambiguous: feed.byKind.ambiguous ?? 0,
         conflict: feed.byKind.conflict ?? 0,
         missing_acceptance: feed.byKind.missing_acceptance ?? 0,
-      }) as Record<Filter, number>,
+      }) as Record<KindFilter, number>,
+    [feed],
+  );
+
+  const decisionCounts = useMemo(
+    () =>
+      ({
+        all: feed.total,
+        open: feed.items.filter((i) => i.decision === "open").length,
+        confirmed: feed.items.filter((i) => i.decision === "confirmed").length,
+        ignored: feed.items.filter((i) => i.decision === "ignored").length,
+      }) as Record<DecisionFilter, number>,
     [feed],
   );
 
   const rows = useMemo(
-    () => (filter === "all" ? feed.items : feed.items.filter((i) => i.kind === filter)),
-    [feed.items, filter],
+    () =>
+      feed.items.filter(
+        (issue) =>
+          (kind === "all" || issue.kind === kind) &&
+          (decision === "all" || issue.decision === decision),
+      ),
+    [feed.items, kind, decision],
   );
+
+  async function decide(issue: QualityIssue, next: "confirmed" | "ignored" | "open") {
+    setBusy(issue.fingerprint);
+    setError(null);
+    try {
+      await decideQualityIssue(1, issue.fingerprint, next);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   return (
     <section className="view active">
@@ -53,7 +102,7 @@ export function QualityBoard({ feed }: { feed: QualityFeed }) {
             ) : null}
           </h1>
           <div className="page-sub">
-            规则引擎给出可复现的问题，结论由人确认。同一份数据每次扫描结果一致。
+            规则引擎给出可复现的问题，逐条「确认 / 忽略」留下裁决；同一份数据每次扫描结果一致。
           </div>
         </div>
         <div className="head-actions">
@@ -74,47 +123,60 @@ export function QualityBoard({ feed }: { feed: QualityFeed }) {
           <div className="d">确定性规则，可复算</div>
         </div>
         <div className="metric">
-          <div className="k">模糊表达</div>
+          <div className="k">待处理</div>
           <div className="v">
-            {counts.ambiguous}
+            {decisionCounts.open}
             <small>条</small>
           </div>
-          <div className="d">命中词表，建议补量化指标</div>
+          <div className="d">还需要人工裁决</div>
         </div>
         <div className="metric">
-          <div className="k">需求冲突</div>
+          <div className="k">已确认</div>
           <div className="v">
-            {counts.conflict}
+            {decisionCounts.confirmed}
             <small>条</small>
           </div>
-          <div className="d">数值口径 + 相反表述</div>
+          <div className="d">问题成立，需要改需求</div>
         </div>
         <div className="metric">
-          <div className="k">缺验收条件</div>
+          <div className="k">已忽略</div>
           <div className="v">
-            {counts.missing_acceptance}
+            {decisionCounts.ignored}
             <small>条</small>
           </div>
-          <div className="d">无法判断是否实现</div>
+          <div className="d">误报或有意为之</div>
         </div>
       </div>
 
       <div className="toolbar" style={{ marginTop: 14 }}>
         <div className="seg">
-          {FILTERS.map((f) => (
+          {KIND_FILTERS.map((f) => (
             <button
               key={f.id}
               type="button"
-              className={filter === f.id ? "on" : ""}
-              onClick={() => setFilter(f.id)}
+              className={kind === f.id ? "on" : ""}
+              onClick={() => setKind(f.id)}
             >
-              {f.label} <span className="n">{counts[f.id]}</span>
+              {f.label} <span className="n">{kindCounts[f.id]}</span>
             </button>
           ))}
         </div>
         <div className="sp" />
-        <span className="st idle">冲突检测目前覆盖可量化口径与相反表述，语义冲突留人工</span>
+        <div className="seg">
+          {DECISION_FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              className={decision === f.id ? "on" : ""}
+              onClick={() => setDecision(f.id)}
+            >
+              {f.label} <span className="n">{decisionCounts[f.id]}</span>
+            </button>
+          ))}
+        </div>
       </div>
+
+      {error ? <div className="extract-status error">{error}</div> : null}
 
       {feed.source === "mock" ? (
         <div className="card">
@@ -137,9 +199,9 @@ export function QualityBoard({ feed }: { feed: QualityFeed }) {
             <div className="ic">
               <Icon name="shield" size={20} />
             </div>
-            <h3>{filter === "all" ? "没有发现问题" : "这一类没有问题"}</h3>
+            <h3>{feed.total === 0 ? "没有发现问题" : "这一组没有条目"}</h3>
             <p>
-              {filter === "all"
+              {feed.total === 0
                 ? "当前需求都通过了规则检查。注意这不等于需求一定正确，语义层面的判断仍需人工。"
                 : "换一个筛选条件看看。"}
             </p>
@@ -155,16 +217,22 @@ export function QualityBoard({ feed }: { feed: QualityFeed }) {
           <div className="issue-list">
             {rows.map((issue) => {
               const meta = KIND_META[issue.kind];
+              const dm = DECISION_META[issue.decision] ?? DECISION_META.open;
+              const working = busy === issue.fingerprint;
               return (
-                <div className="issue" key={issue.issue_id}>
+                <div className="issue" key={issue.fingerprint}>
                   <span
                     className="dot"
-                    style={{ background: issue.severity === "danger" ? "var(--danger)" : "var(--warn)" }}
+                    style={{
+                      background:
+                        issue.severity === "danger" ? "var(--danger)" : "var(--warn)",
+                    }}
                   />
                   <div className="iss-main">
                     <div className="iss-title">
                       <span className={`chip ${meta.chip}`}>{meta.label}</span>
                       {issue.title}
+                      <span className={`chip ${dm.chip}`}>{dm.label}</span>
                     </div>
                     <div className="iss-sub">{issue.detail}</div>
                   </div>
@@ -174,6 +242,34 @@ export function QualityBoard({ feed }: { feed: QualityFeed }) {
                       查看需求
                     </Link>
                   ) : null}
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button
+                      className="btn sm"
+                      type="button"
+                      disabled={working || issue.decision === "confirmed"}
+                      onClick={() => decide(issue, "confirmed")}
+                    >
+                      确认
+                    </button>
+                    <button
+                      className="btn sm ghost"
+                      type="button"
+                      disabled={working || issue.decision === "ignored"}
+                      onClick={() => decide(issue, "ignored")}
+                    >
+                      忽略
+                    </button>
+                    {issue.decision !== "open" ? (
+                      <button
+                        className="btn sm ghost"
+                        type="button"
+                        disabled={working}
+                        onClick={() => decide(issue, "open")}
+                      >
+                        撤销
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               );
             })}

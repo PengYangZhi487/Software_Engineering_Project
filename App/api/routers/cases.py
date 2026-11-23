@@ -11,6 +11,7 @@ PATCH /api/cases/{tc_id}                        审核 / 驳回 / 撤回
 """
 from __future__ import annotations
 
+import json
 import logging
 import time
 
@@ -21,7 +22,7 @@ from App.api.schemas import (
     CaseGenerateRequest,
     CaseGenerateResult,
     CaseListOut,
-    CaseStatusUpdate,
+    CaseUpdate,
     TestCaseOut,
 )
 from App.services import case_service, llm_service, req_service
@@ -159,20 +160,34 @@ def generate_cases(
 @router.patch(
     "/projects/{project_id}/cases/{tc_id}",
     response_model=TestCaseOut,
-    summary="审核 / 驳回 / 撤回用例",
+    summary="编辑 / 审核 / 驳回 / 标记已执行",
 )
-def update_case(project_id: int, tc_id: int, body: CaseStatusUpdate) -> TestCaseOut:
-    if body.status not in case_service.CASE_STATUS:
-        raise HTTPException(
-            status_code=422,
-            detail=f"非法状态 {body.status}，只支持 {list(case_service.CASE_STATUS)}",
-        )
-
+def update_case(project_id: int, tc_id: int, body: CaseUpdate) -> TestCaseOut:
     existing = repository.get_case(tc_id)
     if existing is None or int(existing.get("project_id") or 0) != project_id:
         raise HTTPException(status_code=404, detail=f"用例 {tc_id} 不存在")
 
-    if not repository.update_case_status(tc_id, body.status):
+    changes = body.model_dump(exclude_none=True)
+
+    if "status" in changes and changes["status"] not in case_service.CASE_STATUS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"非法状态 {changes['status']}，只支持 {list(case_service.CASE_STATUS)}",
+        )
+    if "test_type" in changes and changes["test_type"] not in case_service.CASE_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"非法类型 {changes['test_type']}，只支持 {list(case_service.CASE_TYPES)}",
+        )
+    if "preconditions" in changes:
+        changes["preconditions"] = json.dumps(changes["preconditions"], ensure_ascii=False)
+    if "steps" in changes:
+        changes["steps"] = json.dumps(changes["steps"], ensure_ascii=False)
+
+    if not changes:
+        return _to_out(existing)
+
+    if not repository.update_case_fields(tc_id, changes):
         raise HTTPException(status_code=404, detail=f"用例 {tc_id} 不存在")
 
     row = repository.get_case(tc_id)

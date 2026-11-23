@@ -19,9 +19,10 @@ from fastapi import APIRouter, Header, HTTPException, Query
 from App.api import repository
 from App.api.schemas import (
     ExtractResult,
+    RequirementCreate,
     RequirementListOut,
     RequirementOut,
-    RequirementStatusUpdate,
+    RequirementUpdate,
     SourceLocation,
 )
 from App.services import llm_service, req_service
@@ -39,6 +40,7 @@ def _to_out(row: dict) -> RequirementOut:
         title=row["title"],
         description=row["description"],
         req_type=row.get("req_type") or "functional",
+        priority=row.get("priority") or "中",
         status=row["status"],
         acceptance=row.get("acceptance") or [],
         source_location=SourceLocation(**loc) if isinstance(loc, dict) else None,
@@ -151,24 +153,47 @@ def extract_requirements(
     )
 
 
+@router.post(
+    "/projects/{project_id}/requirements",
+    response_model=RequirementOut,
+    status_code=201,
+    summary="手动新建需求",
+)
+def create_requirement(project_id: int, body: RequirementCreate) -> RequirementOut:
+    if repository.get_project(project_id) is None:
+        raise HTTPException(status_code=404, detail=f"项目 {project_id} 不存在")
+
+    req_id = f"CR-{repository.max_requirement_number(project_id) + 1:03d}"
+    try:
+        row = req_service.create_requirement(
+            project_id,
+            req_id,
+            title=body.title,
+            description=body.description,
+            acceptance=body.acceptance,
+            req_type=body.req_type,
+            priority=body.priority,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _to_out(row)
+
+
 @router.patch(
     "/projects/{project_id}/requirements/{req_id}",
     response_model=RequirementOut,
-    summary="确认 / 驳回 / 撤回需求",
+    summary="编辑 / 确认 / 驳回需求",
 )
 def update_requirement(
-    project_id: int, req_id: str, body: RequirementStatusUpdate
+    project_id: int, req_id: str, body: RequirementUpdate
 ) -> RequirementOut:
-    if body.status not in req_service.ALLOWED_STATUS:
-        raise HTTPException(
-            status_code=422,
-            detail=f"非法状态 {body.status}，只支持 {sorted(req_service.ALLOWED_STATUS)}",
+    try:
+        row = req_service.update_requirement(
+            project_id, req_id, body.model_dump(exclude_none=True)
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    if not req_service.update_status(project_id, req_id, body.status):
-        raise HTTPException(status_code=404, detail=f"需求 {req_id} 不存在")
-
-    row = repository.get_requirement(project_id, req_id)
-    if row is None:  # pragma: no cover
+    if row is None:
         raise HTTPException(status_code=404, detail=f"需求 {req_id} 不存在")
     return _to_out(row)

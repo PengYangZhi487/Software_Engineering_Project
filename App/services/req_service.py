@@ -182,6 +182,125 @@ def count_requirements(project_id: int) -> int:
 # ---------- 状态流转（FR-3.4） ----------
 # 已驳回 用于记录「人明确拒绝的 AI 候选」，保留行以便追溯，不物理删除。
 ALLOWED_STATUS = {"未审核", "已确认", "已驳回"}
+PRIORITIES = {"高", "中", "低"}
+REQ_TYPES = {"functional", "non_functional"}
+
+
+def create_requirement(
+    project_id: int,
+    req_id: str,
+    *,
+    title: str,
+    description: str,
+    acceptance: List[str],
+    req_type: str,
+    priority: str,
+) -> Dict:
+    """手动创建需求。编号由调用方按项目续号后传入。"""
+    if req_type not in REQ_TYPES:
+        raise ValueError(f"非法需求类型: {req_type}")
+    if priority not in PRIORITIES:
+        raise ValueError(f"非法优先级: {priority}")
+
+    title = (title or "").strip()
+    description = (description or "").strip()
+    if not title or not description:
+        raise ValueError("标题和描述不能为空")
+
+    is_amb = 1 if has_ambiguous(f"{title} {description}") else 0
+    conn = get_connection()
+    try:
+        conn.execute(
+            """
+            INSERT INTO Requirement
+                (req_id, project_id, doc_id, title, description, acceptance,
+                 req_type, priority, status, source_location, is_ambiguous)
+            VALUES (?, ?, NULL, ?, ?, ?, ?, ?, '未审核', NULL, ?)
+            """,
+            (req_id, project_id, title, description,
+             json.dumps(acceptance or [], ensure_ascii=False),
+             req_type, priority, is_amb),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM Requirement WHERE project_id = ? AND req_id = ?",
+            (project_id, req_id),
+        ).fetchone()
+        data = dict(row)
+    finally:
+        conn.close()
+
+    for key in ("acceptance", "source_location"):
+        if data.get(key):
+            try:
+                data[key] = json.loads(data[key])
+            except (json.JSONDecodeError, TypeError):
+                pass
+    return data
+
+
+def update_requirement(project_id: int, req_id: str, changes: Dict) -> Optional[Dict]:
+    """按字段更新需求；只允许白名单字段，标题/描述变化时重算模糊标记。"""
+    allowed = {"title", "description", "req_type", "priority", "acceptance", "status"}
+    fields = {k: v for k, v in changes.items() if k in allowed and v is not None}
+
+    if "status" in fields and fields["status"] not in ALLOWED_STATUS:
+        raise ValueError(f"非法状态: {fields['status']}")
+    if "req_type" in fields and fields["req_type"] not in REQ_TYPES:
+        raise ValueError(f"非法需求类型: {fields['req_type']}")
+    if "priority" in fields and fields["priority"] not in PRIORITIES:
+        raise ValueError(f"非法优先级: {fields['priority']}")
+
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM Requirement WHERE project_id = ? AND req_id = ?",
+            (project_id, req_id),
+        ).fetchone()
+        if row is None:
+            return None
+        current = dict(row)
+
+        if "title" in fields:
+            fields["title"] = fields["title"].strip()
+            if not fields["title"]:
+                raise ValueError("标题不能为空")
+        if "description" in fields:
+            fields["description"] = fields["description"].strip()
+        if "acceptance" in fields:
+            fields["acceptance"] = json.dumps(fields["acceptance"], ensure_ascii=False)
+
+        if "title" in fields or "description" in fields:
+            title = fields.get("title", current["title"])
+            desc = fields.get("description", current["description"])
+            fields["is_ambiguous"] = 1 if has_ambiguous(f"{title} {desc}") else 0
+
+        if not fields:
+            return None
+
+        sets = ", ".join(f"{k} = ?" for k in fields)
+        conn.execute(
+            f"UPDATE Requirement SET {sets}, updated_at = CURRENT_TIMESTAMP "
+            "WHERE project_id = ? AND req_id = ?",
+            [*fields.values(), project_id, req_id],
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM Requirement WHERE project_id = ? AND req_id = ?",
+            (project_id, req_id),
+        ).fetchone()
+        data = dict(row)
+    finally:
+        conn.close()
+
+    for key in ("acceptance", "source_location"):
+        if data.get(key):
+            try:
+                data[key] = json.loads(data[key])
+            except (json.JSONDecodeError, TypeError):
+                pass
+    return data
+
 
 def update_status(project_id: int, req_id: str, new_status: str) -> bool:
     """切换需求状态（未审核 / 已确认 / 已驳回）。返回是否更新成功。"""

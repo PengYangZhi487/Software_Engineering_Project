@@ -2,7 +2,7 @@ import os
 import sqlite3
 import hashlib
 
-from App.dao.migrations import migrate_requirement_pk
+from App.dao.migrations import ensure_requirement_priority, migrate_requirement_pk
 
 # 动态获取 App 目录的绝对路径
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -86,6 +86,7 @@ def init_db():
             description TEXT NOT NULL,
             acceptance TEXT,
             req_type TEXT DEFAULT 'functional',
+            priority TEXT DEFAULT '中',
             status TEXT DEFAULT '未审核',
             source_location TEXT,
             is_ambiguous INTEGER DEFAULT 0,
@@ -145,9 +146,23 @@ def init_db():
         )
     ''')
 
+    # 8. 建表 QualityDecision（质量问题的裁决：确认 / 忽略）
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS QualityDecision (
+            project_id INTEGER NOT NULL,
+            fingerprint TEXT NOT NULL,
+            decision TEXT NOT NULL,
+            note TEXT,
+            decided_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (project_id, fingerprint),
+            FOREIGN KEY(project_id) REFERENCES Project(project_id)
+        )
+    ''')
+
     # === 新增：迁移已有表结构 ===
     _migrate_requirement_add_req_type(conn)
     migrate_requirement_pk(conn)
+    ensure_requirement_priority(conn)
     
     # 写入默认管理员 (admin / 123456)
     # 密码哈希（简化版，仅作演示演示）

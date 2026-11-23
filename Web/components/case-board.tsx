@@ -6,19 +6,26 @@ import { useRouter } from "next/navigation";
 import { ApiError, apiFetch } from "@/lib/api";
 import type { CaseFeed, TestCaseItem } from "@/lib/server";
 import type { Requirement } from "@/lib/types";
+import { CaseForm } from "./case-form";
 import { Icon } from "./icon";
 
-type StatusFilter = "all" | "已生成" | "已审核" | "已驳回";
+type StatusFilter = "all" | "已生成" | "已审核" | "已驳回" | "已执行";
 
 const TYPE_LABEL: Record<string, string> = { normal: "正常", abnormal: "异常", boundary: "边界" };
 const TYPE_CHIP: Record<string, string> = { normal: "ok", abnormal: "warn", boundary: "accent" };
-const STATUS_CHIP: Record<string, string> = { 已生成: "idle", 已审核: "ok", 已驳回: "danger" };
+const STATUS_CHIP: Record<string, string> = {
+  已生成: "idle",
+  已审核: "ok",
+  已驳回: "danger",
+  已执行: "accent",
+};
 
 const FILTERS: { id: StatusFilter; label: string }[] = [
   { id: "all", label: "全部" },
   { id: "已生成", label: "已生成" },
   { id: "已审核", label: "已审核" },
   { id: "已驳回", label: "已驳回" },
+  { id: "已执行", label: "已执行" },
 ];
 
 export function CaseBoard({ feed, requirements }: { feed: CaseFeed; requirements: Requirement[] }) {
@@ -30,6 +37,8 @@ export function CaseBoard({ feed, requirements }: { feed: CaseFeed; requirements
   const [elapsed, setElapsed] = useState(0);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<TestCaseItem | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const confirmed = useMemo(() => requirements.filter((r) => r.status === "confirmed"), [requirements]);
@@ -41,6 +50,7 @@ export function CaseBoard({ feed, requirements }: { feed: CaseFeed; requirements
         已生成: feed.byStatus["已生成"] ?? 0,
         已审核: feed.byStatus["已审核"] ?? 0,
         已驳回: feed.byStatus["已驳回"] ?? 0,
+        已执行: feed.byStatus["已执行"] ?? 0,
       }) as Record<StatusFilter, number>,
     [feed],
   );
@@ -346,6 +356,17 @@ export function CaseBoard({ feed, requirements }: { feed: CaseFeed; requirements
                     ) : null}
                     <div className="sp" />
                     <button
+                      className="btn sm ghost"
+                      type="button"
+                      onClick={() => {
+                        setEditing(c);
+                        setFormOpen(true);
+                      }}
+                    >
+                      <Icon name="doc" size={13} />
+                      编辑
+                    </button>
+                    <button
                       className="btn sm"
                       type="button"
                       disabled={busyId === c.tc_id || c.status === "已审核"}
@@ -378,6 +399,14 @@ export function CaseBoard({ feed, requirements }: { feed: CaseFeed; requirements
           )}
         </>
       )}
+
+      <CaseForm
+        open={formOpen}
+        projectId={1}
+        initial={editing}
+        onClose={() => setFormOpen(false)}
+        onSaved={() => router.refresh()}
+      />
     </section>
   );
 }

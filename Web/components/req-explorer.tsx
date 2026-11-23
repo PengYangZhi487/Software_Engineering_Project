@@ -6,6 +6,7 @@ import { API_BASE } from "@/lib/api";
 import { hitWords } from "@/lib/quality";
 import type { DataSource, Requirement } from "@/lib/types";
 import { Icon } from "./icon";
+import { RequirementForm } from "./requirement-form";
 
 type Filter = "all" | "unconfirmed" | "confirmed" | "rejected" | "ambiguous";
 type ApiStatus = "未审核" | "已确认" | "已驳回";
@@ -50,7 +51,10 @@ export function ReqExplorer({
   const [openId, setOpenId] = useState<string | null>(initialOpen);
   const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<Requirement | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const projectId = items[0]?.project_id ?? 1;
 
   useEffect(() => setQ(initialQuery), [initialQuery]);
 
@@ -153,7 +157,14 @@ export function ReqExplorer({
           <button className="btn" type="button" onClick={() => flash("导出将在 P8 接入")}>
             <Icon name="down" />导出
           </button>
-          <button className="btn primary" type="button" onClick={() => flash("手动新建在 P3.1 接入")}>
+          <button
+            className="btn primary"
+            type="button"
+            onClick={() => {
+              setEditing(null);
+              setFormOpen(true);
+            }}
+          >
             <Icon name="plus" />新建需求
           </button>
         </div>
@@ -220,6 +231,7 @@ export function ReqExplorer({
               <th style={{ width: 78 }}>编号</th>
               <th>标题</th>
               <th style={{ width: 88 }}>类型</th>
+              <th style={{ width: 62 }}>优先级</th>
               <th style={{ width: 62 }}>验收</th>
               <th style={{ width: 84 }}>风险</th>
               <th style={{ width: 92 }}>状态</th>
@@ -229,7 +241,7 @@ export function ReqExplorer({
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={9}>
                   <div className="empty" style={{ padding: 40 }}>
                     <h3>没有匹配的需求</h3>
                     <p>换个筛选条件，或清空搜索词。</p>
@@ -258,6 +270,7 @@ export function ReqExplorer({
                         {r.type === "functional" ? "功能" : "非功能"}
                       </span>
                     </td>
+                    <td style={{ fontSize: 11.5, color: "var(--text-3)" }}>{r.priority}</td>
                     <td className="tnum">{r.acc.length}</td>
                     <td>
                       {r.risks.length ? (
@@ -288,6 +301,10 @@ export function ReqExplorer({
             req={open}
             busy={busy}
             onClose={() => setOpenId(null)}
+            onEdit={() => {
+              setEditing(open);
+              setFormOpen(true);
+            }}
             onAct={async (status) => {
               if (await patchStatus([open.id], status)) setOpenId(null);
             }}
@@ -296,6 +313,14 @@ export function ReqExplorer({
       </aside>
 
       <div className={`toast${toast ? " on" : ""}`}>{toast}</div>
+
+      <RequirementForm
+        open={formOpen}
+        projectId={projectId}
+        initial={editing}
+        onClose={() => setFormOpen(false)}
+        onSaved={() => router.refresh()}
+      />
     </>
   );
 }
@@ -304,11 +329,13 @@ function DrawerBody({
   req,
   busy,
   onClose,
+  onEdit,
   onAct,
 }: {
   req: Requirement;
   busy: boolean;
   onClose: () => void;
+  onEdit: () => void;
   onAct: (status: ApiStatus) => void;
 }) {
   const words = hitWords(`${req.title} ${req.desc}`);
@@ -326,6 +353,10 @@ function DrawerBody({
           <div className="id">{req.id}</div>
           <div className="ti">{req.title}</div>
         </div>
+        <button className="btn sm ghost" type="button" onClick={onEdit} disabled={busy}>
+          <Icon name="doc" size={13} />
+          编辑
+        </button>
         <button className="btn icon ghost x" type="button" onClick={onClose} aria-label="关闭">
           <Icon name="x" size={15} />
         </button>
