@@ -191,6 +191,7 @@ Software_Engineering_Project/
 ├─ Web/                 前端（Next.js，静态导出）
 ├─ docs/                文档与设计资料（含封装说明、交接指南、演示脚本）
 ├─ tests/               测试与数据集
+├─ demo/                演示文档（需求 V1.0/V1.1 + Excel 导入示例）
 ├─ tools/               运维与构建脚本（demo / build_web / build_exe / backup / seed_demo）
 ├─ archive/             历史产物（不参与构建）
 ├─ build-artifacts/     构建产物（dist / build / web_dist / spec，gitignore）
@@ -207,6 +208,7 @@ Software_Engineering_Project/
 - 概要设计：`docs/概要设计/`
 - **封装说明**（桌面版构建 / 数据目录 / 备份 / 打包）：`docs/封装说明.md`
 - **交接与开发指南**：`docs/项目交接与开发指南.md`
+- **完整功能演示（从新建项目到导出）**：`docs/完整功能演示.md`
 - **答辩演示脚本**：`docs/演示脚本.md`
 - 后端接口：`App/api/README.md`
 - 前端说明：`Web/README.md`
