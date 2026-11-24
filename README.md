@@ -212,6 +212,7 @@ Software_Engineering_Project/
 - **交接与开发指南**：`docs/项目交接与开发指南.md`
 - **完整功能演示（从新建项目到导出）**：`docs/完整功能演示.md`
 - **答辩演示脚本**：`docs/演示脚本.md`
+- **发布说明**：`docs/RELEASE_NOTES_v1.0.1.md`（当前版本 v1.0.1）
 - 后端接口：`App/api/README.md`
 - 前端说明：`Web/README.md`
 - 视觉稿说明：`docs/prototype/README.md`
