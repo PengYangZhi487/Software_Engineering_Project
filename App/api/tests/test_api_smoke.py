@@ -65,6 +65,7 @@ from App.api.routers.requirements import (  # noqa: E402
 )
 from App.api.routers.importer import (  # noqa: E402
     export_cases,
+    export_file,
     export_requirements,
     import_cases_xlsx,
     import_requirements_docx,
@@ -78,6 +79,7 @@ from App.api.schemas import (  # noqa: E402
     CaseStatusUpdate,
     CaseUpdate,
     ExecutionCreate,
+    ExportFileRequest,
     ProjectCreate,
     ProjectUpdate,
     QualityDecisionUpdate,
@@ -1586,6 +1588,42 @@ class ImportExportTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx2:
             export_cases(self.pid, "csv")
         self.assertEqual(ctx2.exception.status_code, 400)
+
+
+class ExportFileTests(unittest.TestCase):
+    """导出到本地数据目录：桌面版点导出后文件落在 <数据目录>/exports。"""
+
+    def setUp(self) -> None:
+        self.pid = _new_project("导出到本地测试")
+        _seed_project(self.pid)
+
+    def tearDown(self) -> None:
+        _drop_project(self.pid)
+
+    def test_saves_report_xlsx_and_csv(self) -> None:
+        xlsx = export_file(self.pid, ExportFileRequest(kind="report", format="xlsx"))
+        path = Path(xlsx.path)
+        self.assertTrue(path.exists())
+        self.assertGreater(xlsx.size, 0)
+        self.assertEqual(path.suffix, ".xlsx")
+
+        csv_result = export_file(self.pid, ExportFileRequest(kind="report", format="csv"))
+        self.assertTrue(Path(csv_result.path).exists())
+        self.assertEqual(Path(csv_result.path).suffix, ".csv")
+
+    def test_saves_requirements_and_cases(self) -> None:
+        req = export_file(self.pid, ExportFileRequest(kind="requirements", format="xlsx"))
+        self.assertTrue(Path(req.path).exists())
+        cases = export_file(self.pid, ExportFileRequest(kind="cases", format="xlsx"))
+        self.assertTrue(Path(cases.path).exists())
+
+    def test_rejects_bad_kind_or_format(self) -> None:
+        with self.assertRaises(HTTPException) as ctx:
+            export_file(self.pid, ExportFileRequest(kind="nope", format="xlsx"))
+        self.assertEqual(ctx.exception.status_code, 422)
+        with self.assertRaises(HTTPException) as ctx2:
+            export_file(self.pid, ExportFileRequest(kind="requirements", format="csv"))
+        self.assertEqual(ctx2.exception.status_code, 422)
 
 
 if __name__ == "__main__":

@@ -394,3 +394,14 @@ class ImportResult(BaseModel):
 class RequirementImportJson(BaseModel):
     mode: str = Field("append", description="append 追加 / replace 先清空再导入")
     text: str = Field(description="粘贴的 JSON 文本，宽容纳 ```json 代码块包裹")
+
+
+class ExportFileRequest(BaseModel):
+    kind: str = Field(description="report / requirements / cases")
+    format: str = Field("xlsx", description="xlsx / csv（csv 仅报告支持）")
+
+
+class ExportFileResult(BaseModel):
+    path: str
+    filename: str
+    size: int

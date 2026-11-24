@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { apiFetch, exportRequirementsUrl } from "@/lib/api";
+import { apiFetch, saveExportFile } from "@/lib/api";
 import { useCurrentProject } from "@/lib/project";
 import { hitWords } from "@/lib/quality";
 import { notifyDataChanged } from "@/lib/use-api";
@@ -45,6 +45,8 @@ export function ReqExplorer({ items, source }: { items: Requirement[]; source: D
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Requirement | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportPath, setExportPath] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { projectId } = useCurrentProject();
 
@@ -67,6 +69,19 @@ export function ReqExplorer({ items, source }: { items: Requirement[]; source: D
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 2200);
+  }
+
+  async function runExport() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const result = await saveExportFile(projectId, "requirements");
+      setExportPath(result.path);
+    } catch (err) {
+      flash(err instanceof Error ? err.message : "导出失败");
+    } finally {
+      setExporting(false);
+    }
   }
 
   const rows = useMemo(() => {
@@ -148,9 +163,9 @@ export function ReqExplorer({ items, source }: { items: Requirement[]; source: D
           <button className="btn" type="button" onClick={() => setImportOpen(true)}>
             <Icon name="upload" />导入
           </button>
-          <a className="btn" href={exportRequirementsUrl(projectId)} download>
-            <Icon name="down" />导出
-          </a>
+          <button className="btn" type="button" disabled={exporting} onClick={() => void runExport()}>
+            <Icon name="down" />{exporting ? "导出中…" : "导出"}
+          </button>
           <button
             className="btn primary"
             type="button"
@@ -163,6 +178,23 @@ export function ReqExplorer({ items, source }: { items: Requirement[]; source: D
           </button>
         </div>
       </div>
+
+      {exportPath ? (
+        <div className="extract-status ok" style={{ marginTop: 10, wordBreak: "break-all" }}>
+          已导出到：{exportPath}
+          <button
+            type="button"
+            className="btn sm ghost"
+            style={{ marginLeft: 8 }}
+            onClick={() => {
+              void navigator.clipboard?.writeText(exportPath);
+              flash("路径已复制");
+            }}
+          >
+            复制路径
+          </button>
+        </div>
+      ) : null}
 
       <div className="toolbar">
         <div className="seg">

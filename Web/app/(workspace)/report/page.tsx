@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { Icon } from "@/components/icon";
 import { Loading } from "@/components/loading";
 import { Offline } from "@/components/offline";
-import { API_BASE } from "@/lib/api";
+import { saveExportFile, type SavedExport } from "@/lib/api";
 import { loadReport } from "@/lib/data";
 import { useCurrentProject } from "@/lib/project";
 import { useApi } from "@/lib/use-api";
@@ -16,16 +17,31 @@ function pct(part: number, total: number) {
 export default function ReportPage() {
   const { projectId, ready } = useCurrentProject();
   const { data: feed, loading, error } = useApi(() => loadReport(projectId), [projectId]);
+  const [saving, setSaving] = useState<"xlsx" | "csv" | null>(null);
+  const [saved, setSaved] = useState<SavedExport | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   if (!ready || loading || !feed) return <Loading title="正在生成质量报告…" />;
   if (error || !feed.data) return <Offline message={error ?? feed.error} />;
 
   const { project, documents, counts, generated_at } = feed.data;
-  // API_BASE 为空时是相对路径（桌面壳同源），导出仍由后端生成文件
-  const exportUrl = `${API_BASE}/api/projects/${project.project_id}/report/export?format=csv`;
-  const exportXlsxUrl = `${API_BASE}/api/projects/${project.project_id}/report/export?format=xlsx`;
   const issueTotal = Math.max(counts.issues, 1);
   const caseTotal = Math.max(counts.cases, 1);
+
+  async function runExport(format: "xlsx" | "csv") {
+    if (!feed?.data) return;
+    setSaving(format);
+    setSaved(null);
+    setSaveError(null);
+    try {
+      const result = await saveExportFile(feed.data.project.project_id, "report", format);
+      setSaved(result);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "导出失败");
+    } finally {
+      setSaving(null);
+    }
+  }
 
   return (
     <section className="view active">
@@ -38,15 +54,37 @@ export default function ReportPage() {
           </div>
         </div>
         <div className="head-actions">
-          <a className="btn primary" href={exportXlsxUrl} download>
+          <button
+            className="btn primary"
+            type="button"
+            disabled={saving !== null}
+            onClick={() => void runExport("xlsx")}
+          >
             <Icon name="down" />
-            下载 Excel
-          </a>
-          <a className="btn" href={exportUrl} download>
-            下载 CSV
-          </a>
+            {saving === "xlsx" ? "导出中…" : "导出 Excel"}
+          </button>
+          <button className="btn" type="button" disabled={saving !== null} onClick={() => void runExport("csv")}>
+            {saving === "csv" ? "导出中…" : "导出 CSV"}
+          </button>
         </div>
       </div>
+
+      {saved ? (
+        <div className="extract-status ok" style={{ marginTop: 10, wordBreak: "break-all" }}>
+          已导出到：{saved.path}（{Math.round(saved.size / 1024)} KB）
+          <button
+            type="button"
+            className="btn sm ghost"
+            style={{ marginLeft: 8 }}
+            onClick={() => void navigator.clipboard?.writeText(saved.path)}
+          >
+            复制路径
+          </button>
+        </div>
+      ) : null}
+      {saveError ? (
+        <div className="extract-status err" style={{ marginTop: 10 }}>{saveError}</div>
+      ) : null}
 
       <div className="strip">
         <div className="metric">
@@ -192,12 +230,18 @@ export default function ReportPage() {
             <div>· 覆盖率口径：至少关联一条已审核用例的已确认需求 / 已确认需求总数；</div>
             <div>· 数字与页面同源（同一个 _build()），Excel 直接打开不乱码；</div>
             <div style={{ marginTop: 8 }}>
-              <a className="btn sm" href={exportXlsxUrl} download>
-                下载 Excel
-              </a>
-              <a className="btn sm ghost" href={exportUrl} download style={{ marginLeft: 8 }}>
-                下载 CSV
-              </a>
+              <button className="btn sm" type="button" disabled={saving !== null} onClick={() => void runExport("xlsx")}>
+                {saving === "xlsx" ? "导出中…" : "导出 Excel"}
+              </button>
+              <button
+                className="btn sm ghost"
+                type="button"
+                disabled={saving !== null}
+                onClick={() => void runExport("csv")}
+                style={{ marginLeft: 8 }}
+              >
+                {saving === "csv" ? "导出中…" : "导出 CSV"}
+              </button>
               <Link className="btn sm ghost" href="/trace" style={{ marginLeft: 8 }}>
                 核对覆盖率
               </Link>

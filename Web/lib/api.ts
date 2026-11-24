@@ -432,3 +432,24 @@ export async function lockApp(): Promise<AuthStatus> {
   const res = await apiFetch("/api/auth/lock", { method: "POST" });
   return (await res.json()) as AuthStatus;
 }
+
+/* ---------- 导出到本地数据目录（桌面版下载不可靠时使用） ---------- */
+
+export interface SavedExport {
+  path: string;
+  filename: string;
+  size: number;
+}
+
+/** 让后端生成文件并保存到 <数据目录>/exports/，返回绝对路径。 */
+export async function saveExportFile(
+  projectId: number,
+  kind: "report" | "requirements" | "cases",
+  format: "xlsx" | "csv" = "xlsx",
+): Promise<SavedExport> {
+  const res = await apiFetch(`/api/projects/${projectId}/export-file`, {
+    method: "POST",
+    body: JSON.stringify({ kind, format }),
+  });
+  return (await res.json()) as SavedExport;
+}

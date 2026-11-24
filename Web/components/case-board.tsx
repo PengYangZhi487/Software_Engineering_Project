@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ApiError, apiFetch, batchUpdateCases, exportCasesUrl, formatApiTime } from "@/lib/api";
+import { ApiError, apiFetch, batchUpdateCases, formatApiTime, saveExportFile } from "@/lib/api";
 import type { CaseFeed, ExecutionItem, TestCaseItem } from "@/lib/data";
 import { useCurrentProject } from "@/lib/project";
 import { notifyDataChanged } from "@/lib/use-api";
@@ -49,6 +49,20 @@ export function CaseBoard({
   const [generating, setGenerating] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function runExport() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const result = await saveExportFile(projectId, "cases");
+      setMessage({ kind: "ok", text: `已导出到：${result.path}` });
+    } catch (err) {
+      setMessage({ kind: "error", text: err instanceof Error ? err.message : "导出失败" });
+    } finally {
+      setExporting(false);
+    }
+  }
   const [busyId, setBusyId] = useState<number | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<TestCaseItem | null>(null);
@@ -207,9 +221,9 @@ export function CaseBoard({
           >
             <Icon name="upload" />导入
           </button>
-          <a className="btn" href={exportCasesUrl(projectId)} download>
-            <Icon name="down" />导出
-          </a>
+          <button className="btn" type="button" disabled={exporting} onClick={() => void runExport()}>
+            <Icon name="down" />{exporting ? "导出中…" : "导出"}
+          </button>
           <button
             className="btn primary"
             type="button"

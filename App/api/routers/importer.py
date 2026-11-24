@@ -15,15 +15,18 @@ GET  /api/projects/{pid}/cases/export?format=xlsx   导出可编辑用例清单
 """
 from __future__ import annotations
 
+import csv
+import io
 import json
 import logging
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Response, UploadFile
 
 from App.api import repository
-from App.api.config import MAX_UPLOAD_BYTES
-from App.api.schemas import ImportResult, RequirementImportJson
+from App.api.config import DATA_DIR, MAX_UPLOAD_BYTES
+from App.api.schemas import ExportFileRequest, ExportFileResult, ImportResult, RequirementImportJson
 from App.services import req_service
 from App.services.docx_import import parse_requirements_docx
 from App.services.import_export import (
@@ -34,6 +37,7 @@ from App.services.import_export import (
     parse_cases_xlsx,
     parse_requirements_xlsx,
 )
+from App.services.xlsx_export import build_report_workbook
 
 logger = logging.getLogger(__name__)
 
@@ -312,3 +316,55 @@ def export_cases(
         media_type=XLSX_MIME,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.post(
+    "/projects/{project_id}/export-file",
+    response_model=ExportFileResult,
+    summary="导出并保存到本地数据目录（桌面版可靠，不依赖浏览器下载）",
+)
+def export_file(project_id: int, body: ExportFileRequest) -> ExportFileResult:
+    """把导出文件写到 <数据目录>/exports/，返回绝对路径。
+
+    桌面版（pywebview）对 <a download> 的下载支持不可靠（默认会被取消），
+    所以前端改为调用这个接口，再把保存路径提示给用户。
+    """
+    _ensure_project(project_id)
+    kind = (body.kind or "").strip().lower()
+    fmt = (body.format or "xlsx").strip().lower()
+    if kind not in {"report", "requirements", "cases"}:
+        raise HTTPException(status_code=422, detail="kind 只支持 report / requirements / cases")
+    if fmt not in {"xlsx", "csv"}:
+        raise HTTPException(status_code=422, detail="format 只支持 xlsx / csv")
+    if kind != "report" and fmt != "xlsx":
+        raise HTTPException(status_code=422, detail="只有报告支持 csv 导出")
+
+    if kind == "report":
+        # 局部导入，避免与 report 路由的导入顺序互相影响
+        from App.api.routers import report as report_router
+
+        data = report_router._build(project_id)
+        if fmt == "xlsx":
+            content = build_report_workbook(data, repository.list_executions(project_id))
+            ext = "xlsx"
+        else:
+            buffer = io.StringIO()
+            writer = csv.writer(buffer, lineterminator="\r\n")
+            writer.writerows(report_router._csv_rows(data))
+            content = (report_router.CSV_BOM + buffer.getvalue()).encode("utf-8")
+            ext = "csv"
+    elif kind == "requirements":
+        content = build_requirements_workbook(req_service.get_requirements(project_id))
+        ext = "xlsx"
+    else:
+        content = build_cases_workbook(repository.list_cases(project_id))
+        ext = "xlsx"
+
+    exports_dir = DATA_DIR / "exports"
+    exports_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    filename = f"ratgp-{kind}-project{project_id}-{stamp}.{ext}"
+    path = exports_dir / filename
+    path.write_bytes(content)
+    logger.info("导出文件 project=%s kind=%s -> %s (%d bytes)", project_id, kind, path, len(content))
+    return ExportFileResult(path=str(path), filename=filename, size=len(content))
