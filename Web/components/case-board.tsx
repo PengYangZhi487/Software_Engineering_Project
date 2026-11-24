@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ApiError, apiFetch, batchUpdateCases, formatApiTime, saveExportFile } from "@/lib/api";
+import { ApiError, apiFetch, batchUpdateCases, exportToLocal, formatApiTime } from "@/lib/api";
 import type { CaseFeed, ExecutionItem, TestCaseItem } from "@/lib/data";
 import { useCurrentProject } from "@/lib/project";
 import { notifyDataChanged } from "@/lib/use-api";
@@ -55,8 +55,8 @@ export function CaseBoard({
     if (exporting) return;
     setExporting(true);
     try {
-      const result = await saveExportFile(projectId, "cases");
-      setMessage({ kind: "ok", text: `已导出到：${result.path}` });
+      const result = await exportToLocal(projectId, "cases");
+      if (result) setMessage({ kind: "ok", text: `已导出到：${result.path}` });
     } catch (err) {
       setMessage({ kind: "error", text: err instanceof Error ? err.message : "导出失败" });
     } finally {

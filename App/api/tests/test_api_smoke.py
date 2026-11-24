@@ -1625,6 +1625,29 @@ class ExportFileTests(unittest.TestCase):
             export_file(self.pid, ExportFileRequest(kind="requirements", format="csv"))
         self.assertEqual(ctx2.exception.status_code, 422)
 
+    def test_saves_to_explicit_target_path(self) -> None:
+        target = TMP / "user-chosen" / "my-report.xlsx"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        result = export_file(
+            self.pid,
+            ExportFileRequest(kind="report", format="xlsx", target_path=str(target)),
+        )
+        self.assertEqual(Path(result.path), target)
+        self.assertTrue(target.exists())
+        self.assertGreater(result.size, 0)
+
+    def test_rejects_missing_target_dir(self) -> None:
+        with self.assertRaises(HTTPException) as ctx:
+            export_file(
+                self.pid,
+                ExportFileRequest(
+                    kind="report",
+                    format="xlsx",
+                    target_path=str(TMP / "no-such-dir" / "x.xlsx"),
+                ),
+            )
+        self.assertEqual(ctx.exception.status_code, 422)
+
 
 if __name__ == "__main__":
     unittest.main()

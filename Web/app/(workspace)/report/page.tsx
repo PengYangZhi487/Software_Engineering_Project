@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Icon } from "@/components/icon";
 import { Loading } from "@/components/loading";
 import { Offline } from "@/components/offline";
-import { saveExportFile, type SavedExport } from "@/lib/api";
+import { exportToLocal, type SavedExport } from "@/lib/api";
 import { loadReport } from "@/lib/data";
 import { useCurrentProject } from "@/lib/project";
 import { useApi } from "@/lib/use-api";
@@ -34,8 +34,8 @@ export default function ReportPage() {
     setSaved(null);
     setSaveError(null);
     try {
-      const result = await saveExportFile(feed.data.project.project_id, "report", format);
-      setSaved(result);
+      const result = await exportToLocal(feed.data.project.project_id, "report", format);
+      if (result) setSaved(result);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "导出失败");
     } finally {

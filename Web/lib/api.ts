@@ -441,15 +441,60 @@ export interface SavedExport {
   size: number;
 }
 
-/** 让后端生成文件并保存到 <数据目录>/exports/，返回绝对路径。 */
+/** 让后端生成文件；给了 targetPath 就写到那里，否则保存到 <数据目录>/exports/。 */
 export async function saveExportFile(
   projectId: number,
   kind: "report" | "requirements" | "cases",
   format: "xlsx" | "csv" = "xlsx",
+  targetPath: string | null = null,
 ): Promise<SavedExport> {
+  const payload: Record<string, string> = { kind, format };
+  if (targetPath) payload.target_path = targetPath;
   const res = await apiFetch(`/api/projects/${projectId}/export-file`, {
     method: "POST",
-    body: JSON.stringify({ kind, format }),
+    body: JSON.stringify(payload),
   });
   return (await res.json()) as SavedExport;
+}
+
+/* ---------- 桌面版：原生「另存为」对话框 ---------- */
+
+declare global {
+  interface Window {
+    pywebview?: {
+      api?: {
+        choose_save_path?: (filename: string) => Promise<string | null>;
+      };
+    };
+  }
+}
+
+export interface SavePathPick {
+  supported: boolean;
+  path: string | null;
+}
+
+/** 桌面版弹原生另存为；浏览器模式 supported=false。用户取消时 path=null。 */
+export async function pickSavePath(defaultFilename: string): Promise<SavePathPick> {
+  const api = typeof window !== "undefined" ? window.pywebview?.api : undefined;
+  if (!api?.choose_save_path) return { supported: false, path: null };
+  try {
+    const path = await api.choose_save_path(defaultFilename);
+    return { supported: true, path: path || null };
+  } catch {
+    return { supported: false, path: null };
+  }
+}
+
+/** 导出：桌面版先选路径，浏览器直接保存到数据目录；取消返回 null。 */
+export async function exportToLocal(
+  projectId: number,
+  kind: "report" | "requirements" | "cases",
+  format: "xlsx" | "csv" = "xlsx",
+): Promise<SavedExport | null> {
+  const stamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 12);
+  const defaultName = `ratgp-${kind}-project${projectId}-${stamp}.${format}`;
+  const pick = await pickSavePath(defaultName);
+  if (pick.supported && !pick.path) return null;
+  return saveExportFile(projectId, kind, format, pick.path);
 }

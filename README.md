@@ -90,7 +90,7 @@ npm run dev
 - `/requirements`：「导出」下载可编辑的需求清单；「导入」支持 `.xlsx` / `.docx` 需求表，或直接粘贴大模型输出的 JSON（模型编的编号会被忽略，由程序续号）；
 - `/cases`：「导出」用例清单；「导入」Excel 用例表（关联需求必须存在）；
 - 典型用法：导出 → 在 Excel 里批量改 → 导入回来，软件负责编号、状态、追溯；
-- 桌面版点「导出」会把文件保存到数据目录的 `exports\`（默认 `%APPDATA%\RATGP\exports`），并在页面上显示完整路径；浏览器模式直接下载到下载目录。
+- 桌面版点「导出」会弹出**另存为**对话框，自己选保存位置（默认建议放在桌面或文档目录）；浏览器模式保存到后端的 `exports\`（`App\data\exports`）。
 
 ### 步骤 7：多项目
 
@@ -179,7 +179,7 @@ cd Web
 | 受限环境（DSH 沙箱）build 报 EPERM | 用 `Web\scripts\build-sandbox.ps1`；`build_web.ps1` 会自动识别 |
 | onefile exe 报 `PYI: Failed to create parent directory structure` | 受限环境解压不了，改用 `-OneDir` 目录版，或在真实桌面双击 |
 | 桌面版打开是空库 | 桌面版数据目录是 `%APPDATA%\RATGP`，按步骤 9 把 `App\data\ratgp.db` 复制过去 |
-| 桌面版点导出没反应 | 更新到最新 exe：导出会把文件保存到数据目录的 `exports\`，页面显示完整路径；旧版才依赖浏览器下载 |
+| 桌面版点导出没反应 | 更新到最新 exe：导出会弹「另存为」对话框；没弹就说明还是旧版 exe |
 
 ## 六、目录结构
 

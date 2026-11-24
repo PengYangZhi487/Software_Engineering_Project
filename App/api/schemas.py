@@ -399,6 +399,10 @@ class RequirementImportJson(BaseModel):
 class ExportFileRequest(BaseModel):
     kind: str = Field(description="report / requirements / cases")
     format: str = Field("xlsx", description="xlsx / csv（csv 仅报告支持）")
+    target_path: str | None = Field(
+        None,
+        description="桌面版“另存为”选择的绝对路径；不填则保存到 <数据目录>/exports",
+    )
 
 
 class ExportFileResult(BaseModel):

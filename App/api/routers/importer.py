@@ -20,6 +20,7 @@ import io
 import json
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Response, UploadFile
@@ -360,11 +361,21 @@ def export_file(project_id: int, body: ExportFileRequest) -> ExportFileResult:
         content = build_cases_workbook(repository.list_cases(project_id))
         ext = "xlsx"
 
-    exports_dir = DATA_DIR / "exports"
-    exports_dir.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    filename = f"ratgp-{kind}-project{project_id}-{stamp}.{ext}"
-    path = exports_dir / filename
+    target = (body.target_path or "").strip()
+    if target:
+        path = Path(target)
+        if path.suffix.lower() not in {".xlsx", ".csv"}:
+            path = path.with_suffix(f".{ext}")
+        if not path.parent.exists():
+            raise HTTPException(status_code=422, detail=f"目录不存在：{path.parent}")
+        filename = path.name
+    else:
+        exports_dir = DATA_DIR / "exports"
+        exports_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        filename = f"ratgp-{kind}-project{project_id}-{stamp}.{ext}"
+        path = exports_dir / filename
+
     path.write_bytes(content)
     logger.info("导出文件 project=%s kind=%s -> %s (%d bytes)", project_id, kind, path, len(content))
     return ExportFileResult(path=str(path), filename=filename, size=len(content))

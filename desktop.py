@@ -226,12 +226,32 @@ def _run_window(webview, url: str, debug: bool = False) -> None:
     except Exception:  # 旧版 pywebview 没有 settings 字典
         LOG.warning("当前 pywebview 不支持 ALLOW_DOWNLOADS，导出可能无法保存")
 
+    class DesktopApi:
+        """暴露给前端 JS 的桥：弹原生「另存为」对话框。"""
+
+        def choose_save_path(self, filename: str = "") -> str | None:
+            try:
+                windows = getattr(webview, "windows", None) or []
+                if not windows:
+                    return None
+                result = windows[0].create_file_dialog(
+                    webview.FileDialog.SAVE,
+                    save_filename=filename or "ratgp-export.xlsx",
+                )
+                if not result:
+                    return None
+                return result if isinstance(result, str) else str(result[0])
+            except Exception:
+                LOG.exception("选择保存路径失败")
+                return None
+
     window = webview.create_window(
         WINDOW_TITLE,
         url,
         width=1440,
         height=900,
         min_size=(1024, 700),
+        js_api=DesktopApi(),
     )
     LOG.info("正在打开桌面窗口：%s", url)
     webview.start(debug=debug)

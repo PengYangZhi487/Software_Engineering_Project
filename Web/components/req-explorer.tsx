@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { apiFetch, saveExportFile } from "@/lib/api";
+import { apiFetch, exportToLocal } from "@/lib/api";
 import { useCurrentProject } from "@/lib/project";
 import { hitWords } from "@/lib/quality";
 import { notifyDataChanged } from "@/lib/use-api";
@@ -75,8 +75,8 @@ export function ReqExplorer({ items, source }: { items: Requirement[]; source: D
     if (exporting) return;
     setExporting(true);
     try {
-      const result = await saveExportFile(projectId, "requirements");
-      setExportPath(result.path);
+      const result = await exportToLocal(projectId, "requirements");
+      if (result) setExportPath(result.path);
     } catch (err) {
       flash(err instanceof Error ? err.message : "导出失败");
     } finally {
