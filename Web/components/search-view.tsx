@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { SearchFeed } from "@/lib/server";
+import type { SearchFeed } from "@/lib/data";
 
 const REQ_STATUS_LABEL: Record<string, string> = {
   confirmed: "已确认",

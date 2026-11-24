@@ -1,7 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { ChangeAlert } from "@/components/change-alert";
 import { Icon } from "@/components/icon";
+import { Loading } from "@/components/loading";
 import { Offline } from "@/components/offline";
-import { loadQuality, loadRequirements, loadTrace } from "@/lib/server";
+import { loadDiff, loadQuality, loadRequirements, loadTrace } from "@/lib/data";
+import { useCurrentProject } from "@/lib/project";
+import { useApi } from "@/lib/use-api";
 
 const ACTIVITY = [
   { t: "10:58", k: "a", x: <>上传 <b>course_selection_v1.docx</b> · V1.0</> },
@@ -11,11 +17,24 @@ const ACTIVITY = [
   { t: "11:06", k: "", x: <>用例生成与覆盖率已接入，下一步做变更影响</> },
 ];
 
-export default async function OverviewPage() {
-  const feed = await loadRequirements(1);
-  if (feed.source === "mock") return <Offline message={feed.error} />;
+export default function OverviewPage() {
+  const { projectId, ready } = useCurrentProject();
+  const { data, loading, error } = useApi(async () => {
+    const [feed, quality, trace, diff] = await Promise.all([
+      loadRequirements(projectId),
+      loadQuality(projectId),
+      loadTrace(projectId),
+      loadDiff(projectId),
+    ]);
+    return { feed, quality, trace, diff };
+  }, [projectId]);
 
-  const [quality, trace] = await Promise.all([loadQuality(1), loadTrace(1)]);
+  if (!ready || loading || !data) return <Loading title="正在读取总览…" />;
+  if (error || data.feed.source === "mock") {
+    return <Offline message={error ?? data.feed.error} />;
+  }
+
+  const { feed, quality, trace, diff } = data;
   const { items, counts } = feed;
   const byKind = quality.byKind;
   const ambiguousIssues = byKind.ambiguous ?? 0;
@@ -58,6 +77,10 @@ export default async function OverviewPage() {
             <Icon name="more" size={15} />
           </button>
         </div>
+      </div>
+
+      <div style={{ marginBottom: 14 }}>
+        <ChangeAlert feed={diff} />
       </div>
 
       <div className="strip">

@@ -1,8 +1,21 @@
 /**
- * 服务端数据入口：优先读 FastAPI，连不上时退回本地 mock（页面不至于白屏）。
- * 只在 Server Component 里调用。
+ * 客户端数据入口：页面与组件在浏览器里直接 fetch FastAPI。
+ *
+ * 静态导出（next.config.ts 的 output: "export"）之后没有 Node 服务端可以取数，
+ * 所以原来 lib/server.ts 的 load* 全部搬到这里并改成浏览器 fetch：
+ * - API_BASE 为空时走同源相对路径（桌面壳由 Python 一并托管）；
+ * - 失败不抛异常，返回 source: "mock" + error 的结构，由页面统一渲染 <Offline />；
+ * - 写操作成功后调 notifyDataChanged()（lib/use-api.ts），所有 useApi 自动重新取数。
  */
-import { API_BASE } from "./api";
+import {
+  ApiError,
+  apiFetch,
+  getParagraphs,
+  listDocuments,
+  type ApiDocumentMeta,
+  type ApiParagraph,
+  type ApiProject,
+} from "./api";
 import type { DataSource, Requirement, Risk } from "./types";
 
 interface ApiRequirement {
@@ -77,15 +90,27 @@ function toRequirement(row: ApiRequirement): Requirement {
 }
 
 async function getJson<T>(path: string, timeoutMs = 4000): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    cache: "no-store",
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  if (!res.ok) throw new Error(`API ${res.status} ${res.statusText}`);
+  const res = await apiFetch(path, { signal: AbortSignal.timeout(timeoutMs) });
   return (await res.json()) as T;
 }
 
-export async function loadRequirements(projectId = 1): Promise<RequirementFeed> {
+function messageOf(err: unknown): string {
+  return err instanceof Error ? err.message : "无法连接后端";
+}
+
+/* ---------- 项目列表（多项目切换 / 侧栏） ---------- */
+
+/** 项目列表；失败返回空数组（侧栏显示「未连接」，页面自己会渲染 Offline）。 */
+export async function loadProjects(): Promise<ApiProject[]> {
+  try {
+    const data = await getJson<ApiProject[]>("/api/projects");
+    return data;
+  } catch {
+    return [];
+  }
+}
+
+export async function loadRequirements(projectId: number): Promise<RequirementFeed> {
   try {
     const data = await getJson<ApiRequirementList>(`/api/projects/${projectId}/requirements`);
     const items = data.items.map(toRequirement);
@@ -95,13 +120,13 @@ export async function loadRequirements(projectId = 1): Promise<RequirementFeed> 
     return {
       items: [],
       source: "mock",
-      error: err instanceof Error ? err.message : "无法连接后端",
+      error: messageOf(err),
       counts: { total: 0, confirmed: 0, rejected: 0, pending: 0, ambiguous: 0 },
     };
   }
 }
 
-export async function loadDocumentCount(projectId = 1): Promise<number> {
+export async function loadDocumentCount(projectId: number): Promise<number> {
   try {
     const data = await getJson<{ total: number }>(`/api/projects/${projectId}/documents`);
     return data.total;
@@ -144,7 +169,7 @@ interface ApiQualitySummary {
   by_kind: Record<string, number>;
 }
 
-export async function loadQuality(projectId = 1): Promise<QualityFeed> {
+export async function loadQuality(projectId: number): Promise<QualityFeed> {
   try {
     const data = await getJson<ApiQualitySummary>(`/api/projects/${projectId}/quality/issues`);
     return {
@@ -164,7 +189,7 @@ export async function loadQuality(projectId = 1): Promise<QualityFeed> {
       decided: 0,
       byKind: {},
       source: "mock",
-      error: err instanceof Error ? err.message : "无法连接后端",
+      error: messageOf(err),
     };
   }
 }
@@ -200,7 +225,7 @@ interface ApiCaseList {
   by_type: Record<string, number>;
 }
 
-export async function loadCases(projectId = 1): Promise<CaseFeed> {
+export async function loadCases(projectId: number): Promise<CaseFeed> {
   try {
     const data = await getJson<ApiCaseList>(`/api/projects/${projectId}/cases`);
     return {
@@ -218,7 +243,7 @@ export async function loadCases(projectId = 1): Promise<CaseFeed> {
       byStatus: {},
       byType: {},
       source: "mock",
-      error: err instanceof Error ? err.message : "无法连接后端",
+      error: messageOf(err),
     };
   }
 }
@@ -276,7 +301,7 @@ const EMPTY_SUMMARY: TraceSummary = {
   uncovered: 0,
 };
 
-export async function loadTrace(projectId = 1): Promise<TraceFeed> {
+export async function loadTrace(projectId: number): Promise<TraceFeed> {
   try {
     const data = await getJson<ApiTrace>(`/api/projects/${projectId}/trace`);
     return { ...data, source: "api", error: null };
@@ -286,7 +311,7 @@ export async function loadTrace(projectId = 1): Promise<TraceFeed> {
       requirements: [],
       cases: [],
       source: "mock",
-      error: err instanceof Error ? err.message : "无法连接后端",
+      error: messageOf(err),
     };
   }
 }
@@ -336,32 +361,16 @@ export interface DiffFeed {
   source: DataSource;
 }
 
-export async function loadDiff(projectId = 1): Promise<DiffFeed> {  try {
-    const res = await fetch(`${API_BASE}/api/projects/${projectId}/document-diff`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(5000),
-    });
-
-    if (res.status === 400) {
-      const body = (await res.json().catch(() => null)) as { detail?: string } | null;
-      return {
-        available: false,
-        data: null,
-        message: body?.detail ?? "至少需要两个版本的文档",
-        source: "api",
-      };
-    }
-    if (!res.ok) throw new Error(`API ${res.status} ${res.statusText}`);
-
-    const data = (await res.json()) as DiffData;
+export async function loadDiff(projectId: number): Promise<DiffFeed> {
+  try {
+    const data = await getJson<DiffData>(`/api/projects/${projectId}/document-diff`, 5000);
     return { available: true, data, message: null, source: "api" };
   } catch (err) {
-    return {
-      available: false,
-      data: null,
-      message: err instanceof Error ? err.message : "无法连接后端",
-      source: "mock",
-    };
+    // 400 = 文档不足两个版本，属于正常提示而不是离线
+    if (err instanceof ApiError && err.status === 400) {
+      return { available: false, data: null, message: err.message, source: "api" };
+    }
+    return { available: false, data: null, message: messageOf(err), source: "mock" };
   }
 }
 
@@ -398,16 +407,12 @@ export interface ReportFeed {
   error: string | null;
 }
 
-export async function loadReport(projectId = 1): Promise<ReportFeed> {
+export async function loadReport(projectId: number): Promise<ReportFeed> {
   try {
     const data = await getJson<ReportData>(`/api/projects/${projectId}/report`);
     return { data, source: "api", error: null };
   } catch (err) {
-    return {
-      data: null,
-      source: "mock",
-      error: err instanceof Error ? err.message : "无法连接后端",
-    };
+    return { data: null, source: "mock", error: messageOf(err) };
   }
 }
 
@@ -431,7 +436,7 @@ export interface ExecutionFeed {
   total: number;
 }
 
-export async function loadExecutions(projectId = 1): Promise<ExecutionFeed> {
+export async function loadExecutions(projectId: number): Promise<ExecutionFeed> {
   try {
     const data = await getJson<ExecutionFeed>(`/api/projects/${projectId}/executions`);
     return { items: data.items ?? [], total: data.total ?? 0 };
@@ -483,7 +488,25 @@ export async function loadSearch(projectId: number, keyword: string): Promise<Se
       quality: [],
       total: 0,
       source: "mock",
-      error: err instanceof Error ? err.message : "无法连接后端",
+      error: messageOf(err),
     };
   }
+}
+
+/* ---------- 文档工作台用的组合取数 ---------- */
+
+export interface DocumentWorkspaceFeed {
+  doc: ApiDocumentMeta | null;
+  paragraphs: ApiParagraph[];
+  requirements: Requirement[];
+  requirementsError: string | null;
+}
+
+/** 文档工作台一次取齐：最新文档 + 段落 + 需求（需求失败不影响文档展示）。 */
+export async function loadDocumentWorkspace(projectId: number): Promise<DocumentWorkspaceFeed> {
+  const docs = await listDocuments(projectId);
+  const doc = docs[0] ?? null;
+  const paragraphs = doc ? await getParagraphs(doc.doc_id) : [];
+  const feed = await loadRequirements(projectId);
+  return { doc, paragraphs, requirements: feed.items, requirementsError: feed.error };
 }

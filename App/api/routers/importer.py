@@ -1,6 +1,7 @@
 """导入导出：让 Excel 当编辑器，软件当追溯层。
 
 POST /api/projects/{pid}/requirements/import/xlsx   上传需求清单（multipart：file + mode）
+POST /api/projects/{pid}/requirements/import/docx   上传 Word 需求表（multipart：file + mode）
 POST /api/projects/{pid}/requirements/import/json   粘贴大模型输出（JSON 文本）
 GET  /api/projects/{pid}/requirements/export?format=xlsx  导出可编辑需求清单
 POST /api/projects/{pid}/cases/import/xlsx          上传用例清单
@@ -24,6 +25,7 @@ from App.api import repository
 from App.api.config import MAX_UPLOAD_BYTES
 from App.api.schemas import ImportResult, RequirementImportJson
 from App.services import req_service
+from App.services.docx_import import parse_requirements_docx
 from App.services.import_export import (
     XLSX_MIME,
     build_cases_workbook,
@@ -50,13 +52,15 @@ def _mode(value: str) -> str:
     return mode
 
 
-async def _read_upload(file: UploadFile) -> bytes:
+async def _read_upload(file: UploadFile, suffix: str = ".xlsx") -> bytes:
     name = (file.filename or "").lower()
-    if not name.endswith(".xlsx"):
-        raise HTTPException(
-            status_code=415,
-            detail="只支持 .xlsx；可以先从页面导出一份清单，在 Excel 里改完再导入",
+    if not name.endswith(suffix):
+        detail = (
+            "只支持 .docx；请上传带需求表格的 Word 文件（首行表头，一行一条需求）"
+            if suffix == ".docx"
+            else "只支持 .xlsx；可以先从页面导出一份清单，在 Excel 里改完再导入"
         )
+        raise HTTPException(status_code=415, detail=detail)
     content = await file.read()
     await file.close()
     if not content:
@@ -207,6 +211,30 @@ async def import_requirements_xlsx(
         raise HTTPException(status_code=400, detail=f"解析 Excel 失败：{exc}") from exc
     if not rows:
         raise HTTPException(status_code=400, detail="表格里没有可导入的行（第一行应为表头）")
+    return _apply_requirements(project_id, rows, _mode(mode))
+
+
+@router.post(
+    "/projects/{project_id}/requirements/import/docx",
+    response_model=ImportResult,
+    summary="从 Word 需求表导入需求（可更新已有编号）",
+)
+async def import_requirements_docx(
+    project_id: int,
+    file: UploadFile = File(..., description="需求表 .docx（首行表头）"),
+    mode: str = Form("append", description="append 追加 / replace 先清空再导入"),
+) -> ImportResult:
+    _ensure_project(project_id)
+    content = await _read_upload(file, suffix=".docx")
+    try:
+        rows = parse_requirements_docx(content)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"解析 Word 失败：{exc}") from exc
+    if not rows:
+        raise HTTPException(
+            status_code=400,
+            detail="Word 里没有可导入的需求表（需要一张首行为表头的表格）",
+        )
     return _apply_requirements(project_id, rows, _mode(mode))
 
 

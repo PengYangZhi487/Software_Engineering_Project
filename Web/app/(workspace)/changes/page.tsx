@@ -1,11 +1,20 @@
+"use client";
+
 import { ChangeBoard } from "@/components/change-board";
+import { Loading } from "@/components/loading";
 import { Offline } from "@/components/offline";
-import { loadDiff } from "@/lib/server";
+import { loadDiff } from "@/lib/data";
+import { useCurrentProject } from "@/lib/project";
+import { useApi } from "@/lib/use-api";
 
-export const metadata = { title: "版本比对 · RATGP" };
+export default function ChangesPage() {
+  const { projectId, ready } = useCurrentProject();
+  const { data, loading, error } = useApi(() => loadDiff(projectId), [projectId]);
 
-export default async function ChangesPage() {
-  const feed = await loadDiff(1);
-  if (feed.source === "mock") return <Offline message={feed.message} />;
-  return <ChangeBoard feed={feed} />;
+  if (!ready || loading || !data) {
+    return <Loading title="正在比对文档版本…" hint="正在对齐两版文档的段落差异。" />;
+  }
+  if (error || data.source === "mock") return <Offline message={error ?? data.message} />;
+
+  return <ChangeBoard feed={data} />;
 }

@@ -1,45 +1,35 @@
+"use client";
+
 import { DocWorkspace } from "@/components/doc-workspace";
+import { Loading } from "@/components/loading";
 import { Offline } from "@/components/offline";
-import {
-  getParagraphs,
-  listDocuments,
-  type ApiDocumentMeta,
-  type ApiParagraph,
-} from "@/lib/api";
-import { loadRequirements } from "@/lib/server";
+import { loadDocumentWorkspace } from "@/lib/data";
+import { useCurrentProject } from "@/lib/project";
+import { useApi, useQueryFlag } from "@/lib/use-api";
 
-export const metadata = { title: "文档工作台 · RATGP" };
+/**
+ * 文档工作台：文档、段落、需求全部在浏览器里取，跟随当前项目。
+ * ?upload=1 / ?extract=1 是链接直达时自动展开对应面板的一次性开关。
+ */
+export default function DocumentPage() {
+  const { projectId, ready } = useCurrentProject();
+  const uploadOpen = useQueryFlag("upload");
+  const extractOpen = useQueryFlag("extract");
+  const { data, loading, error } = useApi(() => loadDocumentWorkspace(projectId), [projectId]);
 
-export default async function DocumentPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ upload?: string; extract?: string }>;
-}) {
-  const { upload, extract } = await searchParams;
-
-  let doc: ApiDocumentMeta | null = null;
-  let paragraphs: ApiParagraph[] = [];
-  let apiError: string | null = null;
-
-  try {
-    const docs = await listDocuments(1);
-    doc = docs[0] ?? null;
-    if (doc) paragraphs = await getParagraphs(doc.doc_id);
-  } catch (err) {
-    apiError = err instanceof Error ? err.message : "无法连接后端";
+  if (!ready || loading || !data) {
+    return <Loading title="正在读取文档…" hint="正在加载最新文档与段落。" />;
   }
-
-  const feed = await loadRequirements(1);
-  if (apiError) return <Offline message={apiError} />;
+  if (error) return <Offline message={error} />;
 
   return (
     <DocWorkspace
-      doc={doc}
-      paragraphs={paragraphs}
+      doc={data.doc}
+      paragraphs={data.paragraphs}
       apiError={null}
-      requirements={feed.items}
-      initialUploadOpen={upload === "1"}
-      initialExtractOpen={extract === "1"}
+      requirements={data.requirements}
+      initialUploadOpen={uploadOpen}
+      initialExtractOpen={extractOpen}
     />
   );
 }

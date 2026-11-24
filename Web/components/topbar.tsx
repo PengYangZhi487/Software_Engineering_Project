@@ -5,10 +5,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { Icon } from "./icon";
 import { ThemeMenu } from "./theme-menu";
 import { ApiKeyDialog } from "./api-key-dialog";
+import { lockNow } from "./lock-gate";
 import { getApiKey } from "@/lib/api";
 import { titleOf } from "@/lib/nav";
 
-export function Topbar() {
+export function Topbar({ projectName }: { projectName?: string | null }) {
   const pathname = usePathname();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -53,13 +54,22 @@ export function Topbar() {
   function submit(e: FormEvent) {
     e.preventDefault();
     const value = q.trim();
-    router.push(value ? `/search?q=${encodeURIComponent(value)}` : "/search");
+    // 保留当前项目参数，搜索页也落在同一个项目上（localStorage 只是兜底）
+    let project: string | null = null;
+    try {
+      project = new URLSearchParams(window.location.search).get("project");
+    } catch {
+      project = null;
+    }
+    const base = value ? `/search?q=${encodeURIComponent(value)}` : "/search";
+    const href = project ? `${base}${base.includes("?") ? "&" : "?"}project=${encodeURIComponent(project)}` : base;
+    router.push(href);
   }
 
   return (
     <header className="topbar">
       <div className="crumb">
-        校园选课系统 <span className="sep">/</span> <b>{titleOf(pathname)}</b>
+        {projectName ?? "未选择项目"} <span className="sep">/</span> <b>{titleOf(pathname)}</b>
       </div>
 
       <form className="searchbox" role="search" onSubmit={submit}>
@@ -76,6 +86,15 @@ export function Topbar() {
       </form>
 
       <div className="tb-div" />
+      <button
+        type="button"
+        className="btn icon ghost"
+        title="锁定：之后需要输入本地锁密码"
+        aria-label="锁定"
+        onClick={() => void lockNow()}
+      >
+        <Icon name="shield" size={15} />
+      </button>
       <button
         type="button"
         className="btn icon ghost keybtn"

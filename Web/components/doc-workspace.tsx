@@ -2,10 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ApiError, apiFetch, formatApiTime } from "@/lib/api";
 import type { ApiDocumentMeta, ApiParagraph } from "@/lib/api";
+import { loadDiff } from "@/lib/data";
+import { useCurrentProject } from "@/lib/project";
+import { useApi, notifyDataChanged } from "@/lib/use-api";
 import type { Requirement } from "@/lib/types";
+import { ChangeAlert } from "./change-alert";
 import { Icon } from "./icon";
 import { UploadCard } from "./upload-card";
 
@@ -24,7 +27,6 @@ export function DocWorkspace({
   initialUploadOpen?: boolean;
   initialExtractOpen?: boolean;
 }) {
-  const router = useRouter();
   const [uploadOpen, setUploadOpen] = useState(initialUploadOpen);
   const [selected, setSelected] = useState<number | null>(null);
   const [extractOpen, setExtractOpen] = useState(initialExtractOpen);
@@ -33,6 +35,10 @@ export function DocWorkspace({
   const [extractMode, setExtractMode] = useState<"append" | "replace">("append");
   const [extractMsg, setExtractMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const paperRef = useRef<HTMLDivElement>(null);
+
+  // 文档改版提醒：上传新版本后 notifyDataChanged() 会让它自动重新计算
+  const { projectId } = useCurrentProject();
+  const { data: diff } = useApi(() => loadDiff(projectId), [projectId]);
 
   // 抽取期间显示已等待秒数（LLM 通常 10–30s，没有进度条也要让人知道还活着）
   useEffect(() => {
@@ -63,7 +69,7 @@ export function DocWorkspace({
             ? `已追加 ${created} 条需求（原有 ${before} 条保留），状态为「未审核」`
             : `已抽取 ${created} 条需求，编号从 CR-001 起，状态为「未审核」`;
       setExtractMsg({ kind: "ok", text });
-      router.refresh();
+      notifyDataChanged();
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         window.dispatchEvent(new Event("ratgp-open-key-dialog"));
@@ -155,6 +161,10 @@ export function DocWorkspace({
       </div>
 
       {uploadOpen ? <UploadCard onClose={() => setUploadOpen(false)} /> : null}
+
+      <div style={{ marginTop: uploadOpen ? 14 : 0 }}>
+        <ChangeAlert feed={diff} />
+      </div>
 
       {extractOpen ? (
         <div className="card extract-card">

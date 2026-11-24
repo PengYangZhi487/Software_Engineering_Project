@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { updateCase } from "@/lib/api";
-import type { TestCaseItem } from "@/lib/server";
+import type { TestCaseItem } from "@/lib/data";
 import { Icon } from "./icon";
 
 const TYPES = [

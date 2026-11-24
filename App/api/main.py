@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from App.api import __version__
 from App.api.config import CORS_ORIGINS
 from App.api.routers import (
+    auth,
     cases,
     diff,
     documents,
@@ -55,6 +56,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(projects.router)
 app.include_router(documents.router)
 app.include_router(requirements.router)

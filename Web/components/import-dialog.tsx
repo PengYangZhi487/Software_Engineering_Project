@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   importCasesXlsx,
+  importRequirementsDocx,
   importRequirementsJson,
   importRequirementsXlsx,
   type ImportResult,
@@ -13,7 +14,7 @@ import { Icon } from "./icon";
 type Kind = "requirements" | "cases";
 type Mode = "append" | "replace";
 
-/** 导入弹窗：需求支持「上传 Excel / 粘贴大模型 JSON」，用例只支持 Excel。 */
+/** 导入弹窗：需求支持「上传 Excel / Word / 粘贴大模型 JSON」，用例只支持 Excel。 */
 export function ImportDialog({
   open,
   kind,
@@ -61,13 +62,17 @@ export function ImportDialog({
         res = await importRequirementsJson(projectId, text, mode);
       } else {
         if (!file) {
-          setError("先选择一个 .xlsx 文件");
+          setError(kind === "requirements" ? "先选择一个 .xlsx 或 .docx 文件" : "先选择一个 .xlsx 文件");
           return;
         }
-        res =
-          kind === "requirements"
-            ? await importRequirementsXlsx(projectId, file, mode)
-            : await importCasesXlsx(projectId, file);
+        if (kind === "requirements" && /\.docx$/i.test(file.name)) {
+          res = await importRequirementsDocx(projectId, file, mode);
+        } else {
+          res =
+            kind === "requirements"
+              ? await importRequirementsXlsx(projectId, file, mode)
+              : await importCasesXlsx(projectId, file);
+        }
       }
       setResult(res);
       if (res.created + res.updated > 0) onSaved();
@@ -98,7 +103,7 @@ export function ImportDialog({
                 type="button"
                 onClick={() => setTab("file")}
               >
-                上传 Excel
+                上传 Excel / Word
               </button>
               <button
                 className={`btn sm ${tab === "json" ? "primary" : "ghost"}`}
@@ -124,8 +129,16 @@ export function ImportDialog({
             </label>
           ) : (
             <label className="field">
-              <span>选择 .xlsx（建议先点「导出」，在 Excel 里改完再导入）</span>
-              <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+              <span>
+                {kind === "requirements"
+                  ? "选择 .xlsx 或 .docx（Excel 当编辑器改完再导入，或直接导入 Word 需求表）"
+                  : "选择 .xlsx（建议先点「导出」，在 Excel 里改完再导入）"}
+              </span>
+              <input
+                type="file"
+                accept={kind === "requirements" ? ".xlsx,.docx" : ".xlsx"}
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
               {file ? (
                 <div style={{ fontSize: 11.5, color: "var(--text-3)" }}>{file.name}</div>
               ) : null}

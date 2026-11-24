@@ -1,11 +1,15 @@
 /**
- * 后端 FastAPI（App/api，默认 8000）的唯一入口。
- * 服务端组件直接用 listDocuments / getParagraphs；
- * 浏览器端上传用 uploadDocument（走 multipart）。
+ * 后端 FastAPI（App/api）的唯一入口，全部请求都在浏览器里发出。
  *
- * 换地址：在 Web/.env.local 里写 NEXT_PUBLIC_API_BASE=http://127.0.0.1:8000
+ * 地址规则：
+ * - 生产（next build → 静态导出，桌面壳里由 Python 同源托管）：相对路径 /api/...，不依赖端口；
+ * - 开发（next dev，前端在 3000）：默认打到 http://127.0.0.1:8000；
+ * - 需要别的地址：设 NEXT_PUBLIC_API_BASE（覆盖上面两条）。
  */
-export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8000").replace(/\/$/, "");
+const ENV_API_BASE = process.env.NEXT_PUBLIC_API_BASE;
+const DEV_API_BASE = process.env.NODE_ENV === "development" ? "http://127.0.0.1:8000" : "";
+
+export const API_BASE = (ENV_API_BASE ?? DEV_API_BASE).replace(/\/$/, "");
 
 export interface ApiDocumentMeta {
   doc_id: number;
@@ -100,7 +104,7 @@ async function getJson<T>(path: string, timeoutMs = 5000): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function listDocuments(projectId = 1): Promise<ApiDocumentMeta[]> {
+export async function listDocuments(projectId: number): Promise<ApiDocumentMeta[]> {
   const data = await getJson<{ items: ApiDocumentMeta[]; total: number }>(
     `/api/projects/${projectId}/documents`,
   );
@@ -136,7 +140,7 @@ export function formatApiTime(value: string | null): string {
 export async function uploadDocument(
   file: File,
   version: string,
-  projectId = 1,
+  projectId: number,
 ): Promise<UploadResult> {
   const body = new FormData();
   body.append("file", file);
@@ -291,6 +295,22 @@ export async function importRequirementsJson(
   return (await res.json()) as ImportResult;
 }
 
+/** Word 需求表导入（后端解析 .docx 表格，响应与 xlsx 相同）。 */
+export async function importRequirementsDocx(
+  projectId: number,
+  file: File,
+  mode: "append" | "replace",
+): Promise<ImportResult> {
+  const body = new FormData();
+  body.append("file", file);
+  body.append("mode", mode);
+  const res = await apiFetch(`/api/projects/${projectId}/requirements/import/docx`, {
+    method: "POST",
+    body,
+  });
+  return (await res.json()) as ImportResult;
+}
+
 export async function importCasesXlsx(projectId: number, file: File): Promise<ImportResult> {
   const body = new FormData();
   body.append("file", file);
@@ -307,4 +327,108 @@ export function exportRequirementsUrl(projectId: number): string {
 
 export function exportCasesUrl(projectId: number): string {
   return `${API_BASE}/api/projects/${projectId}/cases/export?format=xlsx`;
+}
+
+/* ---------- 项目（多项目：新建 / 重命名 / 删除） ---------- */
+
+export interface ApiProject {
+  project_id: number;
+  project_name: string;
+  description: string | null;
+  /** 该项目下的需求条数（列表接口带上，侧栏用） */
+  req_count: number;
+}
+
+export interface ProjectDeleteResult {
+  deleted: boolean;
+  project_id: number;
+  project_name: string;
+  requirements: number;
+  documents: number;
+  cases: number;
+  executions: number;
+}
+
+export async function createProject(payload: {
+  project_name: string;
+  description?: string | null;
+}): Promise<ApiProject> {
+  const res = await apiFetch("/api/projects", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return (await res.json()) as ApiProject;
+}
+
+/** 只提交显式给出的字段（description 传 null 表示清空）。 */
+export async function updateProject(
+  projectId: number,
+  payload: { project_name?: string; description?: string | null },
+): Promise<ApiProject> {
+  const res = await apiFetch(`/api/projects/${projectId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+  return (await res.json()) as ApiProject;
+}
+
+/**
+ * 删除项目。默认 force=false：有需求/文档时后端返回 409（ApiError），
+ * 调用方确认后带 force=true 重发才会级联清理。
+ */
+export async function deleteProject(
+  projectId: number,
+  force = false,
+): Promise<ProjectDeleteResult> {
+  const res = await apiFetch(
+    `/api/projects/${projectId}${force ? "?force=true" : ""}`,
+    { method: "DELETE" },
+  );
+  return (await res.json()) as ProjectDeleteResult;
+}
+
+/* ---------- 本地锁（桌面软件的门禁，不是网络级鉴权） ---------- */
+
+export interface AuthStatus {
+  /** 是否设置过本地锁密码 */
+  configured: boolean;
+  /** 当前是否需要输入密码（未设置时恒为 false） */
+  locked: boolean;
+  token_ttl_seconds: number;
+}
+
+export interface AuthLoginResult {
+  token: string;
+  expires_in: number;
+  configured: boolean;
+  locked: boolean;
+}
+
+export async function getAuthStatus(): Promise<AuthStatus> {
+  const res = await apiFetch("/api/auth/status");
+  return (await res.json()) as AuthStatus;
+}
+
+/** 首次设置密码：成功 201，密码不足 4 位 422，已设置过 409。 */
+export async function setupLockPassword(password: string): Promise<AuthStatus> {
+  const res = await apiFetch("/api/auth/setup", {
+    method: "POST",
+    body: JSON.stringify({ password }),
+  });
+  return (await res.json()) as AuthStatus;
+}
+
+/** 登录：密码错 401，还没设置密码 409。 */
+export async function loginLock(password: string): Promise<AuthLoginResult> {
+  const res = await apiFetch("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ password }),
+  });
+  return (await res.json()) as AuthLoginResult;
+}
+
+/** 锁定：后端清空内存 token，之后需要重新登录。 */
+export async function lockApp(): Promise<AuthStatus> {
+  const res = await apiFetch("/api/auth/lock", { method: "POST" });
+  return (await res.json()) as AuthStatus;
 }

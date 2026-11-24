@@ -30,6 +30,11 @@ export const TITLES: Record<string, string> = {
   "/report": "报告",
 };
 
+/** 去掉 trailingSlash 带来的尾部 "/"（静态导出开了 trailingSlash，usePathname 会带尾斜杠）。 */
+export function normalizePath(pathname: string): string {
+  return pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+}
+
 export function titleOf(pathname: string): string {
-  return TITLES[pathname] ?? "总览";
+  return TITLES[normalizePath(pathname)] ?? "总览";
 }

@@ -1,20 +1,27 @@
+"use client";
+
 import Link from "next/link";
 import { Icon } from "@/components/icon";
+import { Loading } from "@/components/loading";
 import { Offline } from "@/components/offline";
 import { API_BASE } from "@/lib/api";
-import { loadReport } from "@/lib/server";
-
-export const metadata = { title: "质量报告 · RATGP" };
+import { loadReport } from "@/lib/data";
+import { useCurrentProject } from "@/lib/project";
+import { useApi } from "@/lib/use-api";
 
 function pct(part: number, total: number) {
   return total ? Math.round((part / total) * 100) : 0;
 }
 
-export default async function ReportPage() {
-  const feed = await loadReport(1);
-  if (!feed.data) return <Offline message={feed.error} />;
+export default function ReportPage() {
+  const { projectId, ready } = useCurrentProject();
+  const { data: feed, loading, error } = useApi(() => loadReport(projectId), [projectId]);
+
+  if (!ready || loading || !feed) return <Loading title="正在生成质量报告…" />;
+  if (error || !feed.data) return <Offline message={error ?? feed.error} />;
 
   const { project, documents, counts, generated_at } = feed.data;
+  // API_BASE 为空时是相对路径（桌面壳同源），导出仍由后端生成文件
   const exportUrl = `${API_BASE}/api/projects/${project.project_id}/report/export?format=csv`;
   const exportXlsxUrl = `${API_BASE}/api/projects/${project.project_id}/report/export?format=xlsx`;
   const issueTotal = Math.max(counts.issues, 1);

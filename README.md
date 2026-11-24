@@ -53,6 +53,15 @@ npm run dev
 .\tools\demo.ps1 -Prod   # 生产模式（缺构建时自动 next build）
 ```
 
+桌面版（单进程，B 路线封装：FastAPI + 静态前端 + pywebview 窗口）：
+
+```powershell
+.\tools\build_web.ps1                      # 构建静态前端 → web_dist（沙箱里自动走 build-sandbox）
+.\venv\Scripts\python.exe desktop.py       # 起窗口；数据在 %APPDATA%\RATGP
+```
+
+细节见 `docs/封装说明.md`（数据目录、备份、打包 exe）。
+
 - 接口文档：http://127.0.0.1:8000/docs
 - 前端页面：http://localhost:3000
 

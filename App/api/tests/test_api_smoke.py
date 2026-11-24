@@ -32,6 +32,12 @@ from starlette.datastructures import UploadFile  # noqa: E402
 
 from App.api import repository  # noqa: E402
 from App.api.main import app  # noqa: E402
+from App.api.routers.auth import (  # noqa: E402
+    auth_lock,
+    auth_login,
+    auth_setup,
+    auth_status,
+)
 from App.api.routers.cases import (  # noqa: E402
     batch_update_cases,
     generate_cases as api_generate_cases,
@@ -45,6 +51,12 @@ from App.api.routers.diff import document_diff  # noqa: E402
 from App.api.routers.quality import decide_issue, list_issues  # noqa: E402
 from App.api.routers.report import export_report, get_report  # noqa: E402
 from App.api.routers.trace import get_coverage, get_trace  # noqa: E402
+from App.api.routers.projects import (  # noqa: E402
+    create_project,
+    delete_project,
+    list_projects,
+    update_project,
+)
 from App.api.routers.requirements import (  # noqa: E402
     create_requirement as api_create_requirement,
     extract_requirements,
@@ -55,15 +67,19 @@ from App.api.routers.importer import (  # noqa: E402
     export_cases,
     export_requirements,
     import_cases_xlsx,
+    import_requirements_docx,
     import_requirements_json,
     import_requirements_xlsx,
 )
 from App.api.schemas import (  # noqa: E402
+    AuthPasswordIn,
     CaseBatchUpdate,
     CaseGenerateRequest,
     CaseStatusUpdate,
     CaseUpdate,
     ExecutionCreate,
+    ProjectCreate,
+    ProjectUpdate,
     QualityDecisionUpdate,
     RequirementCreate,
     RequirementImportJson,
@@ -71,7 +87,7 @@ from App.api.schemas import (  # noqa: E402
     RequirementUpdate,
 )
 from App.dao.db import get_connection, init_db  # noqa: E402
-from App.services import case_service, llm_service, req_service  # noqa: E402
+from App.services import auth_service, case_service, llm_service, req_service  # noqa: E402
 from App.services.doc_service import parse_document  # noqa: E402
 from App.services.diff_service import diff_paragraphs  # noqa: E402
 from App.services.quality_scan import scan_requirements  # noqa: E402
@@ -956,6 +972,224 @@ def _seed_project(pid: int) -> dict:
     )
 
 
+def _reset_local_lock() -> None:
+    """清掉本地锁账号与进程内状态，保证本地锁测试互不影响。"""
+    conn = get_connection()
+    try:
+        conn.execute("DELETE FROM User WHERE username = ?", (auth_service.LOCK_USERNAME,))
+        conn.commit()
+    finally:
+        conn.close()
+    auth_service.lock()
+
+
+class ProjectCrudTests(unittest.TestCase):
+    """多项目：新建 / 重命名 / 删除保护 / 级联清理与跨项目隔离。"""
+
+    def setUp(self) -> None:
+        self.pid = _new_project("项目 CRUD 测试")
+
+    def tearDown(self) -> None:
+        _drop_project(self.pid)
+
+    def test_create_project(self) -> None:
+        out = create_project(ProjectCreate(project_name="新项目", description="项目说明"))
+        self.addCleanup(_drop_project, out.project_id)
+        self.assertGreater(out.project_id, 0)
+        self.assertEqual(out.project_name, "新项目")
+        self.assertEqual(out.description, "项目说明")
+        self.assertEqual(out.req_count, 0)
+        self.assertIn("新项目", [p.project_name for p in list_projects()])
+        self.assertEqual(repository.get_project(out.project_id)["project_name"], "新项目")
+
+    def test_create_accepts_name_alias_and_rejects_blank(self) -> None:
+        out = create_project(ProjectCreate(name="别名项目"))
+        self.addCleanup(_drop_project, out.project_id)
+        self.assertEqual(out.project_name, "别名项目")
+        self.assertIsNone(out.description)
+
+        with self.assertRaises(HTTPException) as ctx:
+            create_project(ProjectCreate(project_name="   "))
+        self.assertEqual(ctx.exception.status_code, 422)
+
+    def test_rename_and_update_description(self) -> None:
+        out = update_project(self.pid, ProjectUpdate(project_name="改名后的项目"))
+        self.assertEqual(out.project_name, "改名后的项目")
+        self.assertEqual(out.req_count, 0)
+
+        # 只改描述，名称保持不变
+        out = update_project(self.pid, ProjectUpdate(description="新的项目描述"))
+        self.assertEqual(out.project_name, "改名后的项目")
+        self.assertEqual(out.description, "新的项目描述")
+
+        # 显式传 null 清空描述
+        out = update_project(self.pid, ProjectUpdate(description=None))
+        self.assertIsNone(out.description)
+
+        with self.assertRaises(HTTPException) as ctx:
+            update_project(999999, ProjectUpdate(project_name="不存在的项目"))
+        self.assertEqual(ctx.exception.status_code, 404)
+        with self.assertRaises(HTTPException) as ctx2:
+            update_project(self.pid, ProjectUpdate(project_name="  "))
+        self.assertEqual(ctx2.exception.status_code, 422)
+
+    def test_delete_empty_project(self) -> None:
+        pid = _new_project("待删除的空项目")
+        result = delete_project(pid)
+        self.assertTrue(result.deleted)
+        self.assertEqual(result.project_id, pid)
+        self.assertEqual(result.requirements, 0)
+        self.assertEqual(result.documents, 0)
+        self.assertIsNone(repository.get_project(pid))
+        self.assertNotIn(pid, [p.project_id for p in list_projects()])
+
+        with self.assertRaises(HTTPException) as ctx:
+            delete_project(pid)
+        self.assertEqual(ctx.exception.status_code, 404)
+
+    def test_delete_protected_then_force_cascades(self) -> None:
+        heavy = _new_project("有数据的项目")
+        other = _new_project("对照项目")
+        self.addCleanup(_drop_project, heavy)
+        self.addCleanup(_drop_project, other)
+        case = _seed_project(heavy)
+        _seed_project(other)
+        _upload(DOCX.read_bytes(), "heavy.docx", "V1.0", heavy)
+        create_execution(heavy, ExecutionCreate(tc_id=case["tc_id"], result="pass"))
+        conn = get_connection()
+        try:
+            conn.execute(
+                "INSERT INTO QualityDecision (project_id, fingerprint, decision) VALUES (?, ?, ?)",
+                (heavy, "fp-1", "ignored"),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        # 有需求/文档时拒绝删除，数据原样保留
+        with self.assertRaises(HTTPException) as ctx:
+            delete_project(heavy)
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertIn("force=true", ctx.exception.detail)
+        self.assertIsNotNone(repository.get_project(heavy))
+        self.assertIsNotNone(repository.get_requirement(heavy, "CR-001"))
+        self.assertEqual(len(repository.list_cases(heavy)), 1)
+
+        # force=true 才级联清理，并且只清这个项目
+        result = delete_project(heavy, force=True)
+        self.assertTrue(result.deleted)
+        self.assertEqual(result.project_name, "有数据的项目")
+        self.assertEqual(result.requirements, 1)
+        self.assertEqual(result.documents, 1)
+        self.assertEqual(result.cases, 1)
+        self.assertEqual(result.executions, 1)
+        self.assertIsNone(repository.get_project(heavy))
+        self.assertIsNone(repository.get_requirement(heavy, "CR-001"))
+        self.assertEqual(repository.list_cases(heavy), [])
+        conn = get_connection()
+        try:
+            docs = conn.execute(
+                "SELECT COUNT(*) AS n FROM Document WHERE project_id = ?", (heavy,)
+            ).fetchone()["n"]
+            decisions = conn.execute(
+                "SELECT COUNT(*) AS n FROM QualityDecision WHERE project_id = ?", (heavy,)
+            ).fetchone()["n"]
+            executions = conn.execute(
+                "SELECT COUNT(*) AS n FROM Execution WHERE project_id = ?", (heavy,)
+            ).fetchone()["n"]
+        finally:
+            conn.close()
+        self.assertEqual(docs, 0)
+        self.assertEqual(decisions, 0)
+        self.assertEqual(executions, 0)
+
+        # 跨项目隔离：对照项目的数据分毫未动
+        self.assertIsNotNone(repository.get_project(other))
+        self.assertIsNotNone(repository.get_requirement(other, "CR-001"))
+        self.assertEqual(len(repository.list_cases(other)), 1)
+
+
+class LocalLockTests(unittest.TestCase):
+    """本地锁：首次设置 / 重复设置 / 错误密码 / 锁定后状态。"""
+
+    def setUp(self) -> None:
+        _reset_local_lock()
+
+    def tearDown(self) -> None:
+        _reset_local_lock()
+
+    def test_status_before_setup(self) -> None:
+        out = auth_status()
+        self.assertFalse(out.configured)
+        self.assertFalse(out.locked, "没设置密码就不算锁定，直接可用")
+        self.assertGreater(out.token_ttl_seconds, 0)
+
+    def test_setup_then_duplicate_setup_rejected(self) -> None:
+        out = auth_setup(AuthPasswordIn(password="secret123"))
+        self.assertTrue(out.configured)
+        self.assertTrue(out.locked, "设置完密码需要再登录一次")
+
+        stored = auth_service._stored_hash()
+        self.assertIsNotNone(stored)
+        self.assertTrue(stored.startswith("pbkdf2_sha256$"))
+        self.assertNotIn("secret123", stored, "不能存明文密码")
+        # 随机盐：同一密码两次哈希结果不同
+        self.assertNotEqual(auth_service._make_hash("secret123"), auth_service._make_hash("secret123"))
+
+        with self.assertRaises(HTTPException) as ctx:
+            auth_setup(AuthPasswordIn(password="another-pass"))
+        self.assertEqual(ctx.exception.status_code, 409)
+
+        with self.assertRaises(HTTPException) as blank:
+            auth_setup(AuthPasswordIn(password="    "))
+        self.assertEqual(blank.exception.status_code, 422)
+
+    def test_login_wrong_then_right_password(self) -> None:
+        auth_setup(AuthPasswordIn(password="secret123"))
+
+        with self.assertRaises(HTTPException) as ctx:
+            auth_login(AuthPasswordIn(password="wrong-pass"))
+        self.assertEqual(ctx.exception.status_code, 401)
+        self.assertTrue(auth_status().locked, "登录失败不解锁")
+
+        out = auth_login(AuthPasswordIn(password="secret123"))
+        self.assertTrue(out.token)
+        self.assertGreater(out.expires_in, 0)
+        self.assertFalse(out.locked)
+        self.assertFalse(auth_status().locked)
+        self.assertTrue(auth_service.validate_token(out.token))
+        self.assertFalse(auth_service.validate_token("forged-token"))
+
+    def test_lock_clears_token_and_allows_relogin(self) -> None:
+        auth_setup(AuthPasswordIn(password="secret123"))
+        token = auth_login(AuthPasswordIn(password="secret123")).token
+        self.assertTrue(auth_service.validate_token(token))
+
+        out = auth_lock()
+        self.assertTrue(out.locked)
+        self.assertFalse(auth_service.validate_token(token), "锁定后旧 token 必须失效")
+
+        token2 = auth_login(AuthPasswordIn(password="secret123")).token
+        self.assertTrue(auth_service.validate_token(token2))
+        self.assertFalse(auth_status().locked)
+
+    def test_login_before_setup_is_rejected(self) -> None:
+        with self.assertRaises(HTTPException) as ctx:
+            auth_login(AuthPasswordIn(password="whatever"))
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertFalse(auth_status().configured)
+
+    def test_expired_token_is_rejected(self) -> None:
+        auth_setup(AuthPasswordIn(password="secret123"))
+        original = auth_service.TOKEN_TTL_SECONDS
+        auth_service.TOKEN_TTL_SECONDS = -1
+        try:
+            out = auth_login(AuthPasswordIn(password="secret123"))
+        finally:
+            auth_service.TOKEN_TTL_SECONDS = original
+        self.assertFalse(auth_service.validate_token(out.token), "过期的 token 不能再用")
+
+
 class ExecutionTests(unittest.TestCase):
     """执行记录：生成 ≠ 执行 ≠ 通过。"""
 
@@ -1126,6 +1360,26 @@ class ImportExportTests(unittest.TestCase):
         buffer.seek(0)
         return UploadFile(filename=filename, file=buffer)
 
+    def _docx_upload(self, headers: list[str], rows: list[list], filename: str = "需求表.docx"):
+        """造一份“正文 + 需求表格”的 Word：首行表头，一行一条需求。"""
+        from docx import Document as Docx
+
+        d = Docx()
+        d.add_heading("校园选课系统需求清单", level=1)
+        d.add_paragraph("下表为本轮需求，请按行填写：")
+        table = d.add_table(rows=len(rows) + 1, cols=len(headers))
+        table.style = "Table Grid"
+        for i, header in enumerate(headers):
+            table.rows[0].cells[i].text = header
+        for r, row in enumerate(rows, start=1):
+            for c, value in enumerate(row):
+                table.rows[r].cells[c].text = str(value)
+        d.add_paragraph("以上为全部需求。")
+        buffer = io.BytesIO()
+        d.save(buffer)
+        buffer.seek(0)
+        return UploadFile(filename=filename, file=buffer)
+
     def test_requirements_export_roundtrip(self) -> None:
         resp = export_requirements(self.pid)
         self.assertIn("spreadsheetml", resp.media_type)
@@ -1211,6 +1465,118 @@ class ImportExportTests(unittest.TestCase):
         self.assertEqual(result.created, 1)
         self.assertTrue(result.errors)
         self.assertIn("标题或描述为空", result.errors[0])
+
+    def test_docx_import_creates_and_updates(self) -> None:
+        """Word 表格导入：已有编号更新，没编号的新增（与前一行同表）。"""
+        file = self._docx_upload(
+            ["需求编号", "标题", "描述", "类型", "优先级", "状态", "验收条件"],
+            [
+                ["CR-001", "课程容量（改）", "课程默认容量 60 人。", "功能", "高", "已确认",
+                 "60 人后拒绝；提示容量已满"],
+                ["", "退课审批", "退课后需教师审批，审批通过才释放名额。", "非功能", "低", "",
+                 "审批通过后释放名额\n未审批不释放名额"],
+            ],
+        )
+        result = asyncio.run(import_requirements_docx(self.pid, file, "append"))
+        self.assertEqual(result.updated, 1)
+        self.assertEqual(result.created, 1)
+        self.assertEqual(result.skipped, 0)
+
+        updated = repository.get_requirement(self.pid, "CR-001")
+        self.assertEqual(updated["title"], "课程容量（改）")
+        self.assertEqual(updated["priority"], "高")
+        self.assertEqual(updated["status"], "已确认")
+        self.assertEqual(updated["acceptance"], ["60 人后拒绝", "提示容量已满"])
+
+        created = repository.get_requirement(self.pid, "CR-002")
+        self.assertIsNotNone(created)
+        self.assertEqual(created["title"], "退课审批")
+        self.assertEqual(created["req_type"], "non_functional")
+        self.assertEqual(created["priority"], "低")
+        self.assertEqual(created["status"], "未审核")
+        self.assertEqual(created["acceptance"], ["审批通过后释放名额", "未审批不释放名额"])
+
+    def test_docx_import_accepts_english_headers(self) -> None:
+        """列名容忍英文别名，表头修饰（*、括号）不影响识别。"""
+        file = self._docx_upload(
+            ["ID", "Title *", "Description", "Type", "Priority", "Status", "Acceptance"],
+            [["", "成绩查询", "学生可以在线查询学期成绩。", "functional", "中", "未审核",
+              "查询到本学期成绩"]],
+        )
+        result = asyncio.run(import_requirements_docx(self.pid, file, "append"))
+        self.assertEqual(result.created, 1)
+        title = "成绩查询"
+        reqs = [r for r in req_service.get_requirements(self.pid) if r["title"] == title]
+        self.assertEqual(len(reqs), 1)
+        self.assertEqual(reqs[0]["acceptance"], ["查询到本学期成绩"])
+
+    def test_docx_import_replace_mode_clears_first(self) -> None:
+        file = self._docx_upload(
+            ["编号", "标题", "描述"],
+            [["", "全新需求", "replace 模式导入的内容。"]],
+        )
+        result = asyncio.run(import_requirements_docx(self.pid, file, "replace"))
+        self.assertEqual(result.created, 1)
+        reqs = req_service.get_requirements(self.pid)
+        self.assertEqual([r["title"] for r in reqs], ["全新需求"])
+
+    def test_docx_import_skips_bad_rows(self) -> None:
+        file = self._docx_upload(
+            ["需求编号", "标题", "描述"],
+            [["", "没有描述", ""], ["", "正常需求", "描述内容"]],
+        )
+        result = asyncio.run(import_requirements_docx(self.pid, file, "append"))
+        self.assertEqual(result.skipped, 1)
+        self.assertEqual(result.created, 1)
+        self.assertTrue(result.errors)
+        self.assertIn("标题或描述为空", result.errors[0])
+
+    def test_docx_import_merged_cell_not_repeated(self) -> None:
+        """编号列纵向合并：第一行按 CR-001 更新，第二行编号视为空（新增）。"""
+        from docx import Document as Docx
+
+        d = Docx()
+        table = d.add_table(rows=3, cols=3)
+        table.style = "Table Grid"
+        for i, header in enumerate(["需求编号（必填）", "需求名称", "需求描述"]):
+            table.rows[0].cells[i].text = header
+        table.rows[1].cells[0].text = "CR-001"
+        table.rows[1].cells[1].text = "课程容量（改）"
+        table.rows[1].cells[2].text = "课程默认容量 60 人。"
+        table.rows[2].cells[0].text = "CR-002"
+        table.rows[2].cells[1].text = "退课审批"
+        table.rows[2].cells[2].text = "退课后需教师审批。"
+        table.cell(1, 0).merge(table.cell(2, 0))
+        buffer = io.BytesIO()
+        d.save(buffer)
+        buffer.seek(0)
+
+        result = asyncio.run(
+            import_requirements_docx(self.pid, UploadFile(filename="合并单元格.docx", file=buffer), "append")
+        )
+        self.assertEqual(result.updated, 1)
+        self.assertEqual(result.created, 1)
+        self.assertEqual(repository.get_requirement(self.pid, "CR-001")["title"], "课程容量（改）")
+        self.assertEqual(repository.get_requirement(self.pid, "CR-002")["title"], "退课审批")
+
+    def test_docx_import_rejects_wrong_type_and_empty_table(self) -> None:
+        xlsx_like = UploadFile(filename="需求.xlsx", file=io.BytesIO(b"PK\x03\x04"))
+        with self.assertRaises(HTTPException) as ctx:
+            asyncio.run(import_requirements_docx(self.pid, xlsx_like, "append"))
+        self.assertEqual(ctx.exception.status_code, 415)
+
+        from docx import Document as Docx
+
+        d = Docx()
+        d.add_paragraph("只有正文，没有需求表格。")
+        buffer = io.BytesIO()
+        d.save(buffer)
+        buffer.seek(0)
+        no_table = UploadFile(filename="纯正文.docx", file=buffer)
+        with self.assertRaises(HTTPException) as ctx2:
+            asyncio.run(import_requirements_docx(self.pid, no_table, "append"))
+        self.assertEqual(ctx2.exception.status_code, 400)
+        self.assertIn("表格", ctx2.exception.detail)
 
     def test_export_rejects_bad_format(self) -> None:
         with self.assertRaises(HTTPException) as ctx:

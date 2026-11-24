@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { API_BASE, exportRequirementsUrl } from "@/lib/api";
+import { apiFetch, exportRequirementsUrl } from "@/lib/api";
+import { useCurrentProject } from "@/lib/project";
 import { hitWords } from "@/lib/quality";
+import { notifyDataChanged } from "@/lib/use-api";
 import type { DataSource, Requirement } from "@/lib/types";
 import { Icon } from "./icon";
 import { ImportDialog } from "./import-dialog";
@@ -34,31 +35,25 @@ function matchFilter(r: Requirement, f: Filter) {
   return true;
 }
 
-export function ReqExplorer({
-  items,
-  source,
-  initialQuery,
-  initialOpen = null,
-}: {
-  items: Requirement[];
-  source: DataSource;
-  initialQuery: string;
-  initialOpen?: string | null;
-}) {
-  const router = useRouter();
+export function ReqExplorer({ items, source }: { items: Requirement[]; source: DataSource }) {
   const [filter, setFilter] = useState<Filter>("all");
-  const [q, setQ] = useState(initialQuery);
+  const [q, setQ] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [openId, setOpenId] = useState<string | null>(initialOpen);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Requirement | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const projectId = items[0]?.project_id ?? 1;
+  const { projectId } = useCurrentProject();
 
-  useEffect(() => setQ(initialQuery), [initialQuery]);
+  // 静态导出下没有 searchParams：深链接 ?q= / ?open= 在挂载后从地址栏读一次
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setQ(params.get("q") ?? "");
+    setOpenId(params.get("open"));
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -118,19 +113,13 @@ export function ReqExplorer({
     setBusy(true);
     try {
       for (const id of ids) {
-        const projectId = items.find((r) => r.id === id)?.project_id ?? 1;
-        const res = await fetch(`${API_BASE}/api/projects/${projectId}/requirements/${id}`, {
+        await apiFetch(`/api/projects/${projectId}/requirements/${id}`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status }),
         });
-        if (!res.ok) {
-          const detail = (await res.json().catch(() => null)) as { detail?: string } | null;
-          throw new Error(detail?.detail ?? `HTTP ${res.status}`);
-        }
       }
       flash(ids.length > 1 ? `已更新 ${ids.length} 条` : `已更新 ${ids[0]}`);
-      router.refresh();
+      notifyDataChanged();
       return true;
     } catch (err) {
       flash(err instanceof Error ? err.message : "保存失败");
@@ -324,7 +313,7 @@ export function ReqExplorer({
         kind="requirements"
         projectId={projectId}
         onClose={() => setImportOpen(false)}
-        onSaved={() => router.refresh()}
+        onSaved={() => notifyDataChanged()}
       />
 
       <RequirementForm
@@ -332,7 +321,7 @@ export function ReqExplorer({
         projectId={projectId}
         initial={editing}
         onClose={() => setFormOpen(false)}
-        onSaved={() => router.refresh()}
+        onSaved={() => notifyDataChanged()}
       />
     </>
   );

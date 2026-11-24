@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { decideQualityIssue } from "@/lib/api";
-import type { QualityFeed, QualityIssue } from "@/lib/server";
+import type { QualityFeed, QualityIssue } from "@/lib/data";
+import { useCurrentProject } from "@/lib/project";
+import { notifyDataChanged } from "@/lib/use-api";
 import { Icon } from "./icon";
 
 type KindFilter = "all" | QualityIssue["kind"];
@@ -37,7 +38,7 @@ const DECISION_FILTERS: { id: DecisionFilter; label: string }[] = [
 ];
 
 export function QualityBoard({ feed }: { feed: QualityFeed }) {
-  const router = useRouter();
+  const { projectId } = useCurrentProject();
   const [kind, setKind] = useState<KindFilter>("all");
   const [decision, setDecision] = useState<DecisionFilter>("all");
   const [busy, setBusy] = useState<string | null>(null);
@@ -79,8 +80,8 @@ export function QualityBoard({ feed }: { feed: QualityFeed }) {
     setBusy(issue.fingerprint);
     setError(null);
     try {
-      await decideQualityIssue(1, issue.fingerprint, next);
-      router.refresh();
+      await decideQualityIssue(projectId, issue.fingerprint, next);
+      notifyDataChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存失败");
     } finally {

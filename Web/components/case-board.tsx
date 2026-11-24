@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ApiError, apiFetch, batchUpdateCases, exportCasesUrl, formatApiTime } from "@/lib/api";
-import type { CaseFeed, ExecutionItem, TestCaseItem } from "@/lib/server";
+import type { CaseFeed, ExecutionItem, TestCaseItem } from "@/lib/data";
+import { useCurrentProject } from "@/lib/project";
+import { notifyDataChanged } from "@/lib/use-api";
 import type { Requirement } from "@/lib/types";
 import { CaseForm } from "./case-form";
 import { ExecutionForm } from "./execution-form";
@@ -41,7 +42,7 @@ export function CaseBoard({
   requirements: Requirement[];
   executions: ExecutionItem[];
 }) {
-  const router = useRouter();
+  const { projectId } = useCurrentProject();
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [genOpen, setGenOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -57,7 +58,6 @@ export function CaseBoard({
   const [execTarget, setExecTarget] = useState<TestCaseItem | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-
   const confirmed = useMemo(() => requirements.filter((r) => r.status === "confirmed"), [requirements]);
 
   const counts = useMemo(
@@ -129,7 +129,7 @@ export function CaseBoard({
     setGenerating(true);
     setMessage(null);
     try {
-      const res = await apiFetch("/api/projects/1/cases/generate", {
+      const res = await apiFetch(`/api/projects/${projectId}/cases/generate`, {
         method: "POST",
         body: JSON.stringify({ req_ids: ids, replace: true }),
       });
@@ -140,7 +140,7 @@ export function CaseBoard({
         kind: "ok",
         text: `已生成 ${data.created ?? 0} 条用例${data.skipped ? `，${data.skipped} 条写入失败` : ""}`,
       });
-      router.refresh();
+      notifyDataChanged();
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         window.dispatchEvent(new Event("ratgp-open-key-dialog"));
@@ -154,11 +154,11 @@ export function CaseBoard({
   async function review(c: TestCaseItem, status: string) {
     setBusyId(c.tc_id);
     try {
-      await apiFetch(`/api/projects/1/cases/${c.tc_id}`, {
+      await apiFetch(`/api/projects/${projectId}/cases/${c.tc_id}`, {
         method: "PATCH",
         body: JSON.stringify({ status }),
       });
-      router.refresh();
+      notifyDataChanged();
     } catch (err) {
       setMessage({ kind: "error", text: err instanceof Error ? err.message : "保存失败" });
     } finally {
@@ -170,10 +170,10 @@ export function CaseBoard({
     if (!selectedCases.size) return;
     setBatchBusy(true);
     try {
-      const updated = await batchUpdateCases(1, [...selectedCases], status);
+      const updated = await batchUpdateCases(projectId, [...selectedCases], status);
       setMessage({ kind: "ok", text: `已批量更新 ${updated} 条用例` });
       setSelectedCases(new Set());
-      router.refresh();
+      notifyDataChanged();
     } catch (err) {
       setMessage({ kind: "error", text: err instanceof Error ? err.message : "批量更新失败" });
     } finally {
@@ -207,7 +207,7 @@ export function CaseBoard({
           >
             <Icon name="upload" />导入
           </button>
-          <a className="btn" href={exportCasesUrl(1)} download>
+          <a className="btn" href={exportCasesUrl(projectId)} download>
             <Icon name="down" />导出
           </a>
           <button
@@ -532,25 +532,25 @@ export function CaseBoard({
       <ImportDialog
         open={importOpen}
         kind="cases"
-        projectId={1}
+        projectId={projectId}
         onClose={() => setImportOpen(false)}
-        onSaved={() => router.refresh()}
+        onSaved={() => notifyDataChanged()}
       />
 
       <ExecutionForm
         open={execOpen}
-        projectId={1}
+        projectId={projectId}
         testCase={execTarget}
         onClose={() => setExecOpen(false)}
-        onSaved={() => router.refresh()}
+        onSaved={() => notifyDataChanged()}
       />
 
       <CaseForm
         open={formOpen}
-        projectId={1}
+        projectId={projectId}
         initial={editing}
         onClose={() => setFormOpen(false)}
-        onSaved={() => router.refresh()}
+        onSaved={() => notifyDataChanged()}
       />
     </section>
   );

@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { uploadDocument } from "@/lib/api";
+import { useCurrentProject } from "@/lib/project";
+import { notifyDataChanged } from "@/lib/use-api";
 import { Icon } from "./icon";
 
 export function UploadCard({
@@ -12,7 +13,7 @@ export function UploadCard({
   onClose?: () => void;
   defaultVersion?: string;
 }) {
-  const router = useRouter();
+  const { projectId } = useCurrentProject();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [version, setVersion] = useState(defaultVersion);
@@ -34,10 +35,10 @@ export function UploadCard({
     setBusy(true);
     setError(null);
     try {
-      await uploadDocument(file, version);
+      await uploadDocument(file, version, projectId);
       setFile(null);
       if (inputRef.current) inputRef.current.value = "";
-      router.refresh();
+      notifyDataChanged();
       onClose?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "上传失败");

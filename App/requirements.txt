@@ -12,3 +12,8 @@ python-multipart>=0.0.9
 
 # Excel 导出（报告 / 测试用例执行表）
 openpyxl>=3.1
+
+# 桌面版（pywebview 壳 + PyInstaller 打包）
+# 只做后端/API 开发时可以不装；打包 exe 才需要 pyinstaller。
+pywebview>=4.4
+pyinstaller>=6.6

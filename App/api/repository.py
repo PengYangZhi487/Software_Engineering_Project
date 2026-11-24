@@ -65,6 +65,107 @@ def get_project(project_id: int) -> dict | None:
         conn.close()
 
 
+_PROJECT_FIELDS = {"project_name", "description"}
+
+
+def insert_project(*, project_name: str, description: str | None = None) -> dict:
+    """新建项目，返回落库后的行。"""
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            "INSERT INTO Project (project_name, description) VALUES (?, ?)",
+            (project_name, description),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT project_id, project_name, description FROM Project WHERE project_id = ?",
+            (int(cur.lastrowid),),
+        ).fetchone()
+        return dict(row)
+    finally:
+        conn.close()
+
+
+def update_project(project_id: int, fields: dict) -> dict | None:
+    """按白名单更新项目；字段为空时只读，项目不存在返回 None。"""
+    clean = {key: value for key, value in (fields or {}).items() if key in _PROJECT_FIELDS}
+    conn = get_connection()
+    try:
+        if clean:
+            sets = ", ".join(f"{key} = ?" for key in clean)
+            conn.execute(
+                f"UPDATE Project SET {sets}, updated_at = CURRENT_TIMESTAMP WHERE project_id = ?",
+                [*clean.values(), project_id],
+            )
+            conn.commit()
+        row = conn.execute(
+            "SELECT project_id, project_name, description FROM Project WHERE project_id = ?",
+            (project_id,),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def _count_rows(conn, project_id: int) -> dict[str, int]:
+    def count(table: str) -> int:
+        row = conn.execute(
+            f"SELECT COUNT(*) AS n FROM {table} WHERE project_id = ?", (project_id,)
+        ).fetchone()
+        return int(row["n"])
+
+    return {
+        "requirements": count("Requirement"),
+        "documents": count("Document"),
+        "cases": count("TestCase"),
+        "executions": count("Execution"),
+    }
+
+
+def project_counts(project_id: int) -> dict[str, int]:
+    """项目下各类子数据的条数（删除保护与响应共用）。"""
+    conn = get_connection()
+    try:
+        return _count_rows(conn, project_id)
+    finally:
+        conn.close()
+
+
+def delete_project(project_id: int) -> dict[str, int]:
+    """级联删除项目及其全部子数据，返回删除前各类子数据的条数。
+
+    删除顺序与 ``req_service.clear_project_requirements`` 一致，从外键依赖最下游开始：
+    Execution → RequirementTestLink / ChangeLog → TestCase → Requirement →
+    Document / QualityDecision → Project。整批在一个事务里，任一步失败整体回滚。
+    """
+    conn = get_connection()
+    try:
+        counts = _count_rows(conn, project_id)
+        # Execution 同时引用 Project 与 TestCase，两条路径都要清干净
+        conn.execute(
+            "DELETE FROM Execution WHERE project_id = ? OR tc_id IN "
+            "(SELECT tc_id FROM TestCase WHERE project_id = ?)",
+            (project_id, project_id),
+        )
+        for table in (
+            "RequirementTestLink",
+            "ChangeLog",
+            "TestCase",
+            "Requirement",
+            "Document",
+            "QualityDecision",
+        ):
+            conn.execute(f"DELETE FROM {table} WHERE project_id = ?", (project_id,))
+        conn.execute("DELETE FROM Project WHERE project_id = ?", (project_id,))
+        conn.commit()
+        return counts
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def insert_document(
     *,
     project_id: int,

@@ -1,18 +1,33 @@
+"use client";
+
 import { CaseBoard } from "@/components/case-board";
+import { Loading } from "@/components/loading";
 import { Offline } from "@/components/offline";
-import { loadCases, loadExecutions, loadRequirements } from "@/lib/server";
+import { loadCases, loadExecutions, loadRequirements } from "@/lib/data";
+import { useCurrentProject } from "@/lib/project";
+import { useApi } from "@/lib/use-api";
 
-export const metadata = { title: "测试用例 · RATGP" };
+export default function CasesPage() {
+  const { projectId, ready } = useCurrentProject();
+  const { data, loading, error } = useApi(async () => {
+    const [feed, requirements, executions] = await Promise.all([
+      loadCases(projectId),
+      loadRequirements(projectId),
+      loadExecutions(projectId),
+    ]);
+    return { feed, requirements, executions };
+  }, [projectId]);
 
-export default async function CasesPage() {
-  const [feed, requirements, executions] = await Promise.all([
-    loadCases(1),
-    loadRequirements(1),
-    loadExecutions(1),
-  ]);
-  if (feed.source === "mock" || requirements.source === "mock") {
-    return <Offline message={feed.error ?? requirements.error} />;
+  if (!ready || loading || !data) return <Loading title="正在读取测试用例…" />;
+  if (error || data.feed.source === "mock" || data.requirements.source === "mock") {
+    return <Offline message={error ?? data.feed.error ?? data.requirements.error} />;
   }
 
-  return <CaseBoard feed={feed} requirements={requirements.items} executions={executions.items} />;
+  return (
+    <CaseBoard
+      feed={data.feed}
+      requirements={data.requirements.items}
+      executions={data.executions.items}
+    />
+  );
 }

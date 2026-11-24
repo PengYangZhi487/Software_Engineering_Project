@@ -36,3 +36,9 @@ App/data/
 App/uploads/
 App/exports/
 App/logs/
+
+# 桌面构建产物（前端静态导出 / PyInstaller）
+web_dist/
+dist/
+build/
+*.spec

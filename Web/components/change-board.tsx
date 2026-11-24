@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import type { DiffFeed } from "@/lib/server";
+import type { DiffFeed } from "@/lib/data";
+import { ChangeAlert } from "./change-alert";
 import { Icon } from "./icon";
 
 const KIND_META: Record<string, { label: string; chip: string }> = {
@@ -66,6 +67,10 @@ export function ChangeBoard({ feed }: { feed: DiffFeed }) {
             上传新版本
           </Link>
         </div>
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        <ChangeAlert feed={feed} variant="detailed" />
       </div>
 
       <div className="strip">

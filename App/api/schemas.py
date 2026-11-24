@@ -38,11 +38,52 @@ class ProjectOut(BaseModel):
     req_count: int = Field(0, description="该项目下的需求条数")
 
 
+class ProjectCreate(BaseModel):
+    project_name: str | None = Field(None, max_length=100, description="项目名称（也可用 name 传）")
+    name: str | None = Field(None, max_length=100, description="项目名称的别名，与 project_name 等价")
+    description: str | None = Field(None, description="项目描述，可为空")
+
+
+class ProjectUpdate(BaseModel):
+    project_name: str | None = Field(None, max_length=100, description="新的项目名称（也可用 name 传）")
+    name: str | None = Field(None, max_length=100, description="项目名称的别名，与 project_name 等价")
+    description: str | None = Field(None, description="新的项目描述；显式传 null 表示清空")
+
+
+class ProjectDeleteResult(BaseModel):
+    deleted: bool = Field(description="是否已删除")
+    project_id: int
+    project_name: str
+    requirements: int = Field(0, description="级联清理掉的需求条数")
+    documents: int = Field(0, description="级联清理掉的文档条数")
+    cases: int = Field(0, description="级联清理掉的用例条数")
+    executions: int = Field(0, description="级联清理掉的执行记录条数")
+
+
 class HealthOut(BaseModel):
     status: str
     db: str
     projects: int | None = None
     version: str
+
+
+# ---------- 本地锁 ----------
+
+class AuthStatusOut(BaseModel):
+    configured: bool = Field(description="是否已经设置过本地锁密码")
+    locked: bool = Field(description="当前是否需要输入密码才能进入")
+    token_ttl_seconds: int = Field(0, description="登录 token 有效期（秒），token 只存在进程内存")
+
+
+class AuthPasswordIn(BaseModel):
+    password: str = Field(min_length=4, max_length=128, description="本地锁密码，至少 4 位")
+
+
+class AuthLoginOut(BaseModel):
+    token: str = Field(description="进程内短期 token，软件重启即失效")
+    expires_in: int = Field(description="有效期（秒）")
+    configured: bool = True
+    locked: bool = False
 
 
 # ---------- P3：需求 ----------

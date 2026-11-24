@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { TraceFeed, TraceRequirement } from "@/lib/server";
+import type { TraceFeed, TraceRequirement } from "@/lib/data";
 import { Icon } from "./icon";
 
 const TYPE_LABEL: Record<string, string> = { normal: "正常", abnormal: "异常", boundary: "边界" };

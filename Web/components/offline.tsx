@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { notifyDataChanged } from "@/lib/use-api";
 import { Icon } from "./icon";
 
 /**
@@ -16,8 +16,6 @@ export function Offline({
   message?: string | null;
   title?: string;
 }) {
-  const router = useRouter();
-
   return (
     <section className="view active">
       <div className="view-head">
@@ -39,7 +37,7 @@ export function Offline({
             .\venv\Scripts\python.exe -m uvicorn App.api.main:app --reload --port 8000
           </code>
           <div className="row">
-            <button className="btn primary" type="button" onClick={() => router.refresh()}>
+            <button className="btn primary" type="button" onClick={() => notifyDataChanged()}>
               重试
             </button>
           </div>
