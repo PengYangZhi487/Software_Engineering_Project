@@ -13,6 +13,9 @@ env/
 .env*
 !.env.example
 
+# 构建产物统一放这里（dist / build / web_dist / spec）
+build-artifacts/
+
 # 忽略本地数据库文件
 *.db
 *.sqlite3

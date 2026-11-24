@@ -83,9 +83,15 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
 # --- 1. web_dist must exist ------------------------------------------------
-$webDist = Join-Path $repoRoot "web_dist"
+$webDist = Join-Path $repoRoot "build-artifacts\web_dist"
 if (-not (Test-Path -LiteralPath (Join-Path $webDist "index.html") -PathType Leaf)) {
-    throw "web_dist\index.html not found. Run .\tools\build_web.ps1 first."
+    $legacy = Join-Path $repoRoot "web_dist"
+    if (Test-Path -LiteralPath (Join-Path $legacy "index.html") -PathType Leaf) {
+        $webDist = $legacy
+    }
+    else {
+        throw "build-artifacts\web_dist\index.html not found. Run .\tools\build_web.ps1 first."
+    }
 }
 
 # --- 2. resolve Python -----------------------------------------------------
@@ -132,8 +138,8 @@ PyInstaller is not installed in this interpreter. Install the build tools:
 }
 
 # --- 4. optional clean -----------------------------------------------------
-$distPath = Join-Path $repoRoot "dist"
-$buildPath = Join-Path $repoRoot "build"
+$distPath = Join-Path $repoRoot "build-artifacts\dist"
+$buildPath = Join-Path $repoRoot "build-artifacts\build"
 if ($CleanOutputs) {
     foreach ($path in @($distPath, $buildPath)) {
         if (Test-Path -LiteralPath $path -PathType Container) {
@@ -153,7 +159,7 @@ $arguments = @(
     "--name", $Name,
     $mode,
     $windowMode,
-    "--add-data", "web_dist;web_dist",
+    "--add-data", "$webDist;web_dist",
     "--collect-submodules", "App",
     "--collect-submodules", "uvicorn",
     "--collect-all", "webview",
@@ -167,7 +173,7 @@ $arguments = @(
     "--hidden-import", "uvicorn.lifespan.on",
     "--distpath", $distPath,
     "--workpath", $buildPath,
-    "--specpath", $repoRoot,
+    "--specpath", (Join-Path $repoRoot "build-artifacts"),
     (Join-Path $repoRoot "desktop.py")
 )
 

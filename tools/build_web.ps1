@@ -73,7 +73,7 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 if (-not $WebDir) { $WebDir = Join-Path $repoRoot "Web" }
-if (-not $OutDir) { $OutDir = Join-Path $repoRoot "web_dist" }
+if (-not $OutDir) { $OutDir = Join-Path $repoRoot "build-artifacts\web_dist" }
 
 $WebDir = [System.IO.Path]::GetFullPath($WebDir)
 $OutDir = [System.IO.Path]::GetFullPath($OutDir)

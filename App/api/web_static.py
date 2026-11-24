@@ -56,6 +56,7 @@ def candidate_dirs(project_root: Path | None = None) -> list[Path]:
     if bundle is not None:
         raw.append(bundle / "web_dist")
 
+    raw.append(root / "build-artifacts" / "web_dist")
     raw.append(root / "web_dist")
     raw.append(root / "Web" / "out")
 

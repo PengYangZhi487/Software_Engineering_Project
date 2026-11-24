@@ -21,15 +21,22 @@ Software_Engineering_Project/
 │  └─ prototype/        P0 静态视觉稿（preview.html + 截图）
 ├─ tests/               测试与数据集
 │  └─ datasets/         选课系统需求说明书（25 条，含模糊/冲突）
-├─ tools/               运维脚本
-│  └─ seed_demo.py      清空并重建演示数据（不调用大模型）
+├─ tools/               运维与构建脚本
+│  ├─ seed_demo.py      清空并重建演示数据（不调用大模型）
+│  ├─ demo.ps1          一键起后端 + 前端 + 打开浏览器
+│  ├─ build_web.ps1     构建静态前端 → build-artifacts/web_dist
+│  ├─ build_exe.ps1     PyInstaller 打包 exe
+│  └─ backup.ps1        备份数据库
 ├─ archive/             历史产物（不参与构建，见 archive/README.md）
 │  ├─ streamlit-v1/     v1 Streamlit 版（已被 Web v2 取代）
 │  ├─ feasibility/      可行性原型 P1–P6
 │  ├─ hld-test/         早期服务层验证脚本
 │  ├─ evidence/         可行性阶段截图（gitignore）
 │  └─ notes/            零散笔记
-├─ venv/                Python 虚拟环境
+├─ build-artifacts/     构建产物（dist / build / web_dist / spec，gitignore）
+├─ desktop.py           桌面入口（FastAPI + pywebview 单进程）
+├─ venv/                Python 虚拟环境（开发用）
+├─ venv-lite/           精简打包环境（可选，gitignore）
 └─ .gitignore
 ```
 
@@ -56,7 +63,7 @@ npm run dev
 桌面版（单进程，B 路线封装：FastAPI + 静态前端 + pywebview 窗口）：
 
 ```powershell
-.\tools\build_web.ps1                      # 构建静态前端 → web_dist（沙箱里自动走 build-sandbox）
+.\tools\build_web.ps1                      # 构建静态前端 → build-artifacts/web_dist（沙箱里自动走 build-sandbox）
 .\venv\Scripts\python.exe desktop.py       # 起窗口；数据在 %APPDATA%\RATGP
 ```
 
