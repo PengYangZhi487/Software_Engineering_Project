@@ -151,22 +151,22 @@ body::before {
 .brand-sub { font-size: 10.5px; color: var(--text-3); letter-spacing: .04em; margin-top: -1px; }
 
 .proj {
-  margin: 12px 12px 8px; padding: 9px 10px;
-  border: 1px solid var(--line); border-radius: 10px;
+  margin: 8px 12px 6px; padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: 8px;
   background: var(--surface-2);
-  display: flex; align-items: center; gap: 9px; cursor: pointer;
+  display: flex; align-items: center; gap: 7px; cursor: pointer;
   transition: border-color .15s var(--ease), background .15s var(--ease);
 }
 .proj:hover { border-color: var(--line-strong); background: var(--surface); }
 .proj .av {
-  width: 26px; height: 26px; border-radius: 7px; flex: none;
+  width: 22px; height: 22px; border-radius: 6px; flex: none;
   background: var(--accent-soft); color: var(--accent);
-  display: grid; place-items: center; font-size: 11.5px; font-weight: 650;
+  display: grid; place-items: center; font-size: 10.5px; font-weight: 650;
 }
-.proj .nm { min-width: 0; }
-.proj .nm b { display: block; font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.proj .nm span { font-size: 10.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
-.proj .chev { margin-left: auto; color: var(--text-3); }
+.proj .nm { min-width: 0; line-height: 1.25; }
+.proj .nm b { display: block; font-size: 11.5px; font-weight: 600; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proj .nm span { font-size: 9.5px; line-height: 1.25; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.proj .chev { margin-left: auto; color: var(--text-3); width: 12px; height: 12px; flex: none; }
 
 .nav { flex: 1; overflow-y: auto; padding: 4px 8px 12px; min-height: 0; }
 .nav-label {
@@ -832,11 +832,11 @@ a.nav-item { text-decoration: none; }
 /* ---------- 多项目：侧栏项目选择器 ---------- */
 .proj-wrap { position: relative; }
 .proj-wrap .proj {
-  width: 100%; text-align: left; cursor: pointer;
+  width: calc(100% - 24px); text-align: left; cursor: pointer;
   font: inherit; color: inherit;
 }
 .proj-menu {
-  position: absolute; left: 10px; right: 10px; top: calc(100% + 6px); z-index: 60;
+  position: absolute; left: 12px; right: 12px; top: calc(100% + 6px); z-index: 60;
   max-height: 56vh; overflow-y: auto; padding: 6px;
   background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
   box-shadow: var(--shadow-pop);
