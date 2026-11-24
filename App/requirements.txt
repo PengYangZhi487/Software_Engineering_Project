@@ -1,8 +1,5 @@
-streamlit>=1.36
-pandas>=2.2
 python-docx>=1.1
 openai>=1.30
-python-dotenv>=1.0
 pydantic>=2.7
 
 # API（P2）
@@ -17,3 +14,9 @@ openpyxl>=3.1
 # 只做后端/API 开发时可以不装；打包 exe 才需要 pyinstaller。
 pywebview>=4.4
 pyinstaller>=6.6
+
+# 历史遗留：archive/streamlit-v1 的旧版才需要，当前 App 完全不用，
+# 不装可以把打包体积降下来（2026-11 精简）。
+# streamlit>=1.36
+# pandas>=2.2
+# python-dotenv>=1.0
