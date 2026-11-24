@@ -219,6 +219,13 @@ def _load_webview():
 
 def _run_window(webview, url: str, debug: bool = False) -> None:
     """打开原生窗口；阻塞到窗口关闭。"""
+    # pywebview 默认 ALLOW_DOWNLOADS=False：<a download> 会被直接 Cancel，
+    # 表现为「点导出没反应」。打开开关后 WebView2 会弹另存为对话框。
+    try:
+        webview.settings["ALLOW_DOWNLOADS"] = True
+    except Exception:  # 旧版 pywebview 没有 settings 字典
+        LOG.warning("当前 pywebview 不支持 ALLOW_DOWNLOADS，导出可能无法保存")
+
     window = webview.create_window(
         WINDOW_TITLE,
         url,

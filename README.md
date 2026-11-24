@@ -89,7 +89,8 @@ npm run dev
 
 - `/requirements`：「导出」下载可编辑的需求清单；「导入」支持 `.xlsx` / `.docx` 需求表，或直接粘贴大模型输出的 JSON（模型编的编号会被忽略，由程序续号）；
 - `/cases`：「导出」用例清单；「导入」Excel 用例表（关联需求必须存在）；
-- 典型用法：导出 → 在 Excel 里批量改 → 导入回来，软件负责编号、状态、追溯。
+- 典型用法：导出 → 在 Excel 里批量改 → 导入回来，软件负责编号、状态、追溯；
+- 桌面版点「导出」会弹出**另存为**对话框（浏览器模式则直接下载到下载目录）。
 
 ### 步骤 7：多项目
 
@@ -178,6 +179,7 @@ cd Web
 | 受限环境（DSH 沙箱）build 报 EPERM | 用 `Web\scripts\build-sandbox.ps1`；`build_web.ps1` 会自动识别 |
 | onefile exe 报 `PYI: Failed to create parent directory structure` | 受限环境解压不了，改用 `-OneDir` 目录版，或在真实桌面双击 |
 | 桌面版打开是空库 | 桌面版数据目录是 `%APPDATA%\RATGP`，按步骤 9 把 `App\data\ratgp.db` 复制过去 |
+| 桌面版点导出没反应 | 旧版 exe 的 pywebview 默认禁止下载；更新到最新 exe（已开启 ALLOW_DOWNLOADS），点击后会弹另存为 |
 
 ## 六、目录结构
 
